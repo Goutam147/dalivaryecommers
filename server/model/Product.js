@@ -10,12 +10,18 @@ const chargeSchema = new mongoose.Schema({
 // Schema for elements inside the types array
 const productTypeSchema = new mongoose.Schema({
     qty: { type: Number, required: true },
+    unitId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Unit',
+        required: true
+    },
     price: { type: Number, required: true },
     mrp: { type: Number, required: true },
     description: { type: String, trim: true },
     maxOrder: { type: Number, default: 1 },
     info: { type: mongoose.Schema.Types.Mixed }, // Mixed type allows any object structure
-    verified: { type: Boolean, default: false } // Boolean default is false (0)
+    verified: { type: Boolean, default: false }, // Boolean default is false (0)
+    veg: { type: Boolean, default: false } // Boolean default is false (0)
 });
 
 // Main Product schema
@@ -37,11 +43,11 @@ const productSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ImagePath'
     }],
-    categoryId: {
+    categoryTypeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CategoryType'
     },
-    brand: {
+    brandId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Brand'
     },
@@ -52,11 +58,6 @@ const productSchema = new mongoose.Schema({
     thumbnail: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ImagePath'
-    },
-    unit: {
-        type: String,
-        trim: true,
-        required: true // e.g., 'kg', 'ltr', 'pcs'
     },
     types: [productTypeSchema],
     returnPolicy: { // Renamed from "return" as "return" is a reserved keyword in JS

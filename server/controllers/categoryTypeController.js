@@ -98,9 +98,34 @@ const deleteCategoryType = async (req, res) => {
     }
 };
 
+// @desc    Reorder category types
+// @route   PUT /api/category-type/reorder
+// @access  Private / Auth
+const reorderCategoryTypes = async (req, res) => {
+    try {
+        const { orders } = req.body; // Array of { id, order }
+
+        if (!orders || !Array.isArray(orders)) {
+            return res.status(400).json({ success: false, message: "Invalid order data" });
+        }
+
+        const updatePromises = orders.map(item =>
+            CategoryType.findByIdAndUpdate(item.id, { order: item.order })
+        );
+
+        await Promise.all(updatePromises);
+
+        res.status(200).json({ success: true, message: "Category Types reordered successfully" });
+    } catch (error) {
+        console.error("Reorder Category Types Error: ", error);
+        res.status(500).json({ success: false, message: "Server Error", error: error.message });
+    }
+};
+
 module.exports = {
     createCategoryType,
     getCategoryTypes,
     updateCategoryType,
-    deleteCategoryType
+    deleteCategoryType,
+    reorderCategoryTypes
 };

@@ -6,7 +6,8 @@ const {
     createCategoryType,
     getCategoryTypes,
     updateCategoryType,
-    deleteCategoryType
+    deleteCategoryType,
+    reorderCategoryTypes
 } = require('../controllers/categoryTypeController');
 const { validateCategoryType } = require('../middleware/validator/categoryTypeValidator');
 
@@ -19,6 +20,11 @@ router.post('/', upload.any(), validateCategoryType, createCategoryType);
 // @desc    Get all category types
 // @access  Public
 router.get('/', getCategoryTypes);
+
+// @route   PUT /api/category-type/reorder
+// @desc    Reorder category types
+// @access  Private / Auth
+router.put('/reorder', reorderCategoryTypes);
 
 // @route   PUT /api/category-type/:id
 // @desc    Update a specific category type

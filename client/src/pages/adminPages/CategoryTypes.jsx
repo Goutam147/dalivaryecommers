@@ -1,11 +1,119 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
-import { FiEdit2, FiX, FiCheck, FiTrash2, FiPlus, FiImage, FiUploadCloud } from 'react-icons/fi';
+import { FiEdit2, FiX, FiCheck, FiTrash2, FiPlus, FiImage, FiUploadCloud, FiMove } from 'react-icons/fi';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const SortableItem = ({ type, openModal, setDeletingCategoryType, setIsDeleteModalOpen }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: type._id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+        opacity: isDragging ? 0.6 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`group relative flex items-center gap-4 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl cursor-default hover:bg-green-50 hover:border-green-200 hover:shadow-md transition-all duration-300 min-w-[280px] ${isDragging ? 'shadow-xl ring-2 ring-green-500/20' : ''}`}
+        >
+            <div className="absolute -top-2 -left-2 bg-white border border-gray-200 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm z-10 group-hover:border-green-500 group-hover:text-green-600 transition-colors">
+                {type.order}
+            </div>
+
+            {/* Image Preview in List */}
+            <div className="w-14 h-14 rounded-xl overflow-hidden border border-gray-200 bg-white flex-shrink-0">
+                {type.imageId?.path?.thumbnail ? (
+                    <img
+                        src={`${import.meta.env.VITE_SERVER_URL}${type.imageId.path.thumbnail}`}
+                        alt={type.name}
+                        className="w-full h-full object-cover"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <FiImage className="w-6 h-6" />
+                    </div>
+                )}
+            </div>
+
+            <div className="flex-1 min-w-0 pr-20">
+                <h4 className="font-bold text-gray-700 group-hover:text-green-800 transition-colors truncate">
+                    {type.name}
+                </h4>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">System Type</p>
+            </div>
+
+            <div className="absolute right-3 flex items-center gap-1">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                        onClick={() => openModal(type)}
+                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                        title="Edit Record"
+                    >
+                        <FiEdit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => { setDeletingCategoryType(type); setIsDeleteModalOpen(true); }}
+                        className="p-2 text-red-500 hover:bg-red-100 rounded-xl transition-colors cursor-pointer"
+                        title="Delete Permanently"
+                    >
+                        <FiTrash2 className="w-4 h-4" />
+                    </button>
+                </div>
+                {/* Drag Handle */}
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="p-2 text-gray-400 hover:text-green-600 cursor-grab active:cursor-grabbing transition-colors"
+                    title="Drag to Reorder"
+                >
+                    <FiMove className="w-5 h-5" />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const CategoryTypes = () => {
     const [categoryTypes, setCategoryTypes] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // DND Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,6 +146,38 @@ const CategoryTypes = () => {
         fetchCategoryTypes();
     }, []);
 
+    const handleDragEnd = async (event) => {
+        const { active, over } = event;
+
+        if (active.id !== over.id) {
+            const oldIndex = categoryTypes.findIndex((item) => item._id === active.id);
+            const newIndex = categoryTypes.findIndex((item) => item._id === over.id);
+
+            const newOrder = arrayMove(categoryTypes, oldIndex, newIndex);
+
+            // Optimistically update UI
+            const updatedWithOrder = newOrder.map((item, index) => ({
+                ...item,
+                order: index + 1
+            }));
+            setCategoryTypes(updatedWithOrder);
+
+            try {
+                // Prepare data for backend
+                const orders = updatedWithOrder.map(item => ({
+                    id: item._id,
+                    order: item.order
+                }));
+
+                await api.put('/category-type/reorder', { orders });
+                toast.success('Order synchronized successfully');
+            } catch (error) {
+                toast.error('Failed to save new order');
+                fetchCategoryTypes(); // Rollback on error
+            }
+        }
+    };
+
     const openModal = (categoryType = null) => {
         if (categoryType) {
             setEditingCategoryType(categoryType);
@@ -48,7 +188,10 @@ const CategoryTypes = () => {
             setImagePreview(categoryType.imageId?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${categoryType.imageId.path.medium}` : null);
         } else {
             setEditingCategoryType(null);
-            setFormData(initialFormState);
+            setFormData({
+                ...initialFormState,
+                order: categoryTypes.length + 1 // Default order for new item
+            });
             setImagePreview(null);
         }
         setImageFile(null);
@@ -133,7 +276,7 @@ const CategoryTypes = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 lg:p-8 border-b border-gray-100 bg-white/50">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Manage Category Types</h2>
-                    <p className="text-gray-500 text-sm mt-1">Define and order distinct classifications for your inventory.</p>
+                    <p className="text-gray-500 text-sm mt-1">Define and drag to reorder distinct classifications for your inventory.</p>
                 </div>
                 <button
                     onClick={() => openModal()}
@@ -155,57 +298,28 @@ const CategoryTypes = () => {
                         <p className="text-gray-500 text-lg font-medium">No Category Types Found. Create your first classification!</p>
                     </div>
                 ) : (
-                    <div className="flex flex-wrap gap-4">
-                        {categoryTypes.map((type) => (
-                            <div
-                                key={type._id}
-                                className="group relative flex items-center gap-4 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl cursor-pointer hover:bg-green-50 hover:border-green-200 hover:shadow-md transition-all duration-300 min-w-[280px]"
-                            >
-                                <div className="absolute -top-2 -left-2 bg-white border border-gray-200 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm z-10 group-hover:border-green-500 group-hover:text-green-600 transition-colors">
-                                    {type.order}
-                                </div>
-
-                                {/* Image Preview in List */}
-                                <div className="w-14 h-14 rounded-xl overflow-hidden border border-gray-200 bg-white flex-shrink-0">
-                                    {type.imageId?.path?.thumbnail ? (
-                                        <img
-                                            src={`${import.meta.env.VITE_SERVER_URL}${type.imageId.path.thumbnail}`}
-                                            alt={type.name}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                            <FiImage className="w-6 h-6" />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex-1 min-w-0 pr-12">
-                                    <h4 className="font-bold text-gray-700 group-hover:text-green-800 transition-colors truncate">
-                                        {type.name}
-                                    </h4>
-                                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">System Type</p>
-                                </div>
-
-                                <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-1">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); openModal(type); }}
-                                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-xl transition-colors"
-                                        title="Edit Record"
-                                    >
-                                        <FiEdit2 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setDeletingCategoryType(type); setIsDeleteModalOpen(true); }}
-                                        className="p-2 text-red-500 hover:bg-red-100 rounded-xl transition-colors"
-                                        title="Delete Permanently"
-                                    >
-                                        <FiTrash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={categoryTypes.map(item => item._id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="flex flex-wrap gap-4">
+                                {categoryTypes.map((type) => (
+                                    <SortableItem
+                                        key={type._id}
+                                        type={type}
+                                        openModal={openModal}
+                                        setDeletingCategoryType={setDeletingCategoryType}
+                                        setIsDeleteModalOpen={setIsDeleteModalOpen}
+                                    />
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
             </div>
 

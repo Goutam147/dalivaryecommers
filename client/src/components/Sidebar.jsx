@@ -47,6 +47,7 @@ const Sidebar = () => {
             name: 'Settings',
             icon: <MdSettings className="w-5 h-5 shrink-0" />,
             children: [
+                { name: 'Set Unit', path: '/admin/units' },
                 { name: 'General', path: '/admin/settings/general' },
                 { name: 'Advanced', path: '/admin/settings/advanced' },
             ]

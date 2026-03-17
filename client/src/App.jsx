@@ -21,6 +21,7 @@ import SubCategories from './pages/adminPages/SubCategories';
 import Brands from './pages/adminPages/Brands';
 import Vendors from './pages/adminPages/Vendors';
 import Products from './pages/adminPages/Products';
+import Units from './pages/adminPages/Units';
 
 const router = createBrowserRouter([
   {
@@ -60,6 +61,7 @@ const router = createBrowserRouter([
       { path: 'products', element: <Products /> },
       { path: 'brands', element: <Brands /> },
       { path: 'vendors', element: <Vendors /> },
+      { path: 'units', element: <Units /> },
     ],
   },
   // Catch all unmatched routes and redirect to index naturally
