@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
-import { FiEdit2, FiX, FiCheck, FiTrash2, FiPlus } from 'react-icons/fi';
+import { FiEdit2, FiX, FiCheck, FiTrash2, FiPlus, FiImage, FiUploadCloud } from 'react-icons/fi';
 
 const CategoryTypes = () => {
     const [categoryTypes, setCategoryTypes] = useState([]);
@@ -13,7 +13,11 @@ const CategoryTypes = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingCategoryType, setEditingCategoryType] = useState(null);
     const [deletingCategoryType, setDeletingCategoryType] = useState(null);
-    const [formData, setFormData] = useState({ name: '' });
+
+    const initialFormState = { name: '', order: 0 };
+    const [formData, setFormData] = useState(initialFormState);
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
 
     // Fetch Category Types on component mount
     const fetchCategoryTypes = async () => {
@@ -37,28 +41,34 @@ const CategoryTypes = () => {
     const openModal = (categoryType = null) => {
         if (categoryType) {
             setEditingCategoryType(categoryType);
-            setFormData({ name: categoryType.name });
+            setFormData({
+                name: categoryType.name,
+                order: categoryType.order || 0
+            });
+            setImagePreview(categoryType.imageId?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${categoryType.imageId.path.medium}` : null);
         } else {
             setEditingCategoryType(null);
-            setFormData({ name: '' });
+            setFormData(initialFormState);
+            setImagePreview(null);
         }
+        setImageFile(null);
         setIsModalOpen(true);
     };
 
     const closeModal = () => {
         setIsModalOpen(false);
-        setFormData({ name: '' });
+        setFormData(initialFormState);
         setEditingCategoryType(null);
+        setImageFile(null);
+        setImagePreview(null);
     };
 
-    const openDeleteModal = (categoryType) => {
-        setDeletingCategoryType(categoryType);
-        setIsDeleteModalOpen(true);
-    };
-
-    const closeDeleteModal = () => {
-        setDeletingCategoryType(null);
-        setIsDeleteModalOpen(false);
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -67,14 +77,30 @@ const CategoryTypes = () => {
 
         try {
             setIsSubmitting(true);
+            const payloadData = new FormData();
+
+            // Backend expects the main JSON data in a 'data' field
+            payloadData.append('data', JSON.stringify({
+                ...formData,
+                order: Number(formData.order)
+            }));
+
+            if (imageFile) {
+                payloadData.append('image', imageFile);
+            }
+
             if (editingCategoryType) {
                 // Update
-                await api.put(`/category-type/${editingCategoryType._id}`, { name: formData.name });
-                toast.success('Category Type updated safely!');
+                await api.put(`/category-type/${editingCategoryType._id}`, payloadData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                toast.success('Category Type updated beautifully!');
             } else {
                 // Create
-                await api.post('/category-type', { name: formData.name });
-                toast.success('Category Type created beautifully!');
+                await api.post('/category-type', payloadData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                toast.success('Category Type created powerfully!');
             }
             fetchCategoryTypes();
             closeModal();
@@ -92,7 +118,8 @@ const CategoryTypes = () => {
             await api.delete(`/category-type/${deletingCategoryType._id}`);
             toast.success('Category Type deleted successfully!');
             fetchCategoryTypes();
-            closeDeleteModal();
+            setIsDeleteModalOpen(false);
+            setDeletingCategoryType(null);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to delete Category Type');
         } finally {
@@ -106,7 +133,7 @@ const CategoryTypes = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 lg:p-8 border-b border-gray-100 bg-white/50">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Manage Category Types</h2>
-                    <p className="text-gray-500 text-sm mt-1">Define distinct classifications to group your inventory.</p>
+                    <p className="text-gray-500 text-sm mt-1">Define and order distinct classifications for your inventory.</p>
                 </div>
                 <button
                     onClick={() => openModal()}
@@ -132,24 +159,46 @@ const CategoryTypes = () => {
                         {categoryTypes.map((type) => (
                             <div
                                 key={type._id}
-                                className="group relative flex items-center justify-between px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl cursor-pointer hover:bg-green-50 hover:border-green-200 hover:shadow-md transition-all duration-300 min-w-[200px]"
+                                className="group relative flex items-center gap-4 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl cursor-pointer hover:bg-green-50 hover:border-green-200 hover:shadow-md transition-all duration-300 min-w-[280px]"
                             >
-                                <span className="font-semibold text-gray-700 group-hover:text-green-800 transition-colors pr-10">
-                                    {type.name}
-                                </span>
+                                <div className="absolute -top-2 -left-2 bg-white border border-gray-200 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm z-10 group-hover:border-green-500 group-hover:text-green-600 transition-colors">
+                                    {type.order}
+                                </div>
+
+                                {/* Image Preview in List */}
+                                <div className="w-14 h-14 rounded-xl overflow-hidden border border-gray-200 bg-white flex-shrink-0">
+                                    {type.imageId?.path?.thumbnail ? (
+                                        <img
+                                            src={`${import.meta.env.VITE_SERVER_URL}${type.imageId.path.thumbnail}`}
+                                            alt={type.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                            <FiImage className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex-1 min-w-0 pr-12">
+                                    <h4 className="font-bold text-gray-700 group-hover:text-green-800 transition-colors truncate">
+                                        {type.name}
+                                    </h4>
+                                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">System Type</p>
+                                </div>
 
                                 <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-1">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); openModal(type); }}
-                                        className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"
-                                        title="Edit"
+                                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-xl transition-colors"
+                                        title="Edit Record"
                                     >
                                         <FiEdit2 className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); openDeleteModal(type); }}
-                                        className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                                        title="Delete"
+                                        onClick={(e) => { e.stopPropagation(); setDeletingCategoryType(type); setIsDeleteModalOpen(true); }}
+                                        className="p-2 text-red-500 hover:bg-red-100 rounded-xl transition-colors"
+                                        title="Delete Permanently"
                                     >
                                         <FiTrash2 className="w-4 h-4" />
                                     </button>
@@ -164,43 +213,83 @@ const CategoryTypes = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative z-10 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-                            <h3 className="text-xl font-bold text-gray-800">
-                                {editingCategoryType ? 'Edit Category Type' : 'New Category Type'}
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative z-10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-6 border-b border-gray-100 shrink-0">
+                            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                {editingCategoryType ? <FiEdit2 className="text-blue-500" /> : <FiPlus className="text-green-500" />}
+                                {editingCategoryType ? 'Refine Category Type' : 'Establish New Category Type'}
                             </h3>
-                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-full p-2 hover:bg-gray-100">
                                 <FiX className="w-6 h-6" />
                             </button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6">
-                            <div className="mb-8">
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Category Type Name</label>
-                                <input
-                                    type="text"
-                                    autoFocus
-                                    required
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ name: e.target.value })}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400"
-                                    placeholder="e.g. Vegetarian"
-                                />
+
+                        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6">
+                            {/* Image Upload Area */}
+                            <div className="group">
+                                <label className="block text-sm font-bold text-gray-700 mb-3">Cover Representation</label>
+                                <div className="flex items-center gap-6">
+                                    <div className="relative w-28 h-28 rounded-2xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center shrink-0 group-hover:border-green-300 transition-colors">
+                                        {imagePreview ? (
+                                            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <FiImage className="w-10 h-10 text-gray-300" />
+                                        )}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageChange}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-xs text-gray-500 mb-2 font-medium">Auto-optimized for rapid delivery. Supports WebP/JPG/PNG.</p>
+                                        <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg cursor-pointer hover:bg-green-100 transition-colors">
+                                            <FiUploadCloud /> {imagePreview ? 'Replace Image' : 'Select Image'}
+                                            <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex gap-3 justify-end">
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="md:col-span-3">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Internal Title</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400 font-semibold"
+                                        placeholder="e.g. Refreshments"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Sort</label>
+                                    <input
+                                        type="number"
+                                        value={formData.order}
+                                        onChange={(e) => setFormData({ ...formData, order: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all text-center font-bold"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-100 flex gap-3 justify-end items-center">
                                 <button
                                     type="button"
                                     onClick={closeModal}
-                                    className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
+                                    className="px-6 py-2.5 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors"
                                 >
-                                    Cancel
+                                    Discard
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-sm shadow-green-600/20 disabled:opacity-70 flex items-center gap-2 transition-all"
+                                    className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-600/20 disabled:opacity-70 flex items-center gap-2 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
                                 >
-                                    {isSubmitting && <div className="w-4 h-4 border-2 border-green-200 border-t-white rounded-full animate-spin"></div>}
-                                    {editingCategoryType ? 'Update' : 'Create'}
+                                    {isSubmitting && <div className="w-5 h-5 border-2 border-green-200 border-t-white rounded-full animate-spin"></div>}
+                                    {editingCategoryType ? 'Update Global Record' : 'Publish Setup'}
                                 </button>
                             </div>
                         </form>
@@ -211,33 +300,28 @@ const CategoryTypes = () => {
             {/* Delete Confirmation Modal */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeDeleteModal} />
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative z-10 p-6 text-center animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <FiTrash2 className="w-8 h-8 text-red-600" />
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsDeleteModalOpen(false)} />
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm relative z-10 p-8 text-center animate-in zoom-in-95 duration-200">
+                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <FiTrash2 className="w-10 h-10 text-red-600" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Category Type?</h3>
-                        <p className="text-gray-500 mb-6 font-medium">
-                            Are you sure you want to delete "<span className="text-gray-800 font-bold">{deletingCategoryType?.name}</span>"? This action cannot be undone.
+                        <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">Purge Record?</h3>
+                        <p className="text-gray-500 mb-8 font-medium leading-relaxed">
+                            Deleting "<span className="text-gray-900 font-bold">{deletingCategoryType?.name}</span>" is irreversible and may affect associated items.
                         </p>
-                        <div className="flex gap-3 justify-center">
+                        <div className="flex gap-4 items-center">
                             <button
-                                onClick={closeDeleteModal}
-                                disabled={isSubmitting}
-                                className="px-5 py-2.5 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors flex-1"
+                                onClick={() => setIsDeleteModalOpen(false)}
+                                className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl flex-1 transition-colors"
                             >
-                                Cancel
+                                Reconsider
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={isSubmitting}
-                                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-sm shadow-red-600/20 transition-colors flex-1 flex justify-center items-center"
+                                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg shadow-red-600/20 flex-1 transition-all"
                             >
-                                {isSubmitting ? (
-                                    <div className="w-5 h-5 border-2 border-red-200 border-t-white rounded-full animate-spin"></div>
-                                ) : (
-                                    'Delete'
-                                )}
+                                {isSubmitting ? '...' : 'Confirm'}
                             </button>
                         </div>
                     </div>

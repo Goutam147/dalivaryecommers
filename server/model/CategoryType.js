@@ -11,6 +11,10 @@ const categoryTypeSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ImagePath'
     },
+    order: {
+        type: Number,
+        default: 0
+    },
     active: {
         type: Number,
         enum: [0, 1],

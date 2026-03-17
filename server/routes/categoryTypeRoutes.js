@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer();
 const {
     createCategoryType,
     getCategoryTypes,
@@ -11,7 +13,7 @@ const { validateCategoryType } = require('../middleware/validator/categoryTypeVa
 // @route   POST /api/category-type
 // @desc    Create a new category type
 // @access  Private / Auth
-router.post('/', validateCategoryType, createCategoryType);
+router.post('/', upload.any(), validateCategoryType, createCategoryType);
 
 // @route   GET /api/category-type
 // @desc    Get all category types
@@ -21,7 +23,7 @@ router.get('/', getCategoryTypes);
 // @route   PUT /api/category-type/:id
 // @desc    Update a specific category type
 // @access  Private / Auth
-router.put('/:id', validateCategoryType, updateCategoryType);
+router.put('/:id', upload.any(), validateCategoryType, updateCategoryType);
 
 // @route   DELETE /api/category-type/:id
 // @desc    Delete a specific category type
