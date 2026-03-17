@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
+import api from '../../utils/api';
 import { toast } from 'react-toastify';
 import { FiEdit2, FiX, FiCheck, FiMapPin, FiPhone, FiMail } from 'react-icons/fi';
 
@@ -11,11 +11,11 @@ const Vendors = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
+    const [validationErrors, setValidationErrors] = useState({});
 
-    // Complex nested vendor form state
     const initialForm = {
         name: '',
-        address: { line1: '', line2: '', city: '', pin: '', location: '' },
+        address: '',
         phones: '', // String to be comma parsed
         email: '',
         gstNo: '',
@@ -43,11 +43,12 @@ const Vendors = () => {
     }, []);
 
     const openModal = (vendor = null) => {
+        setValidationErrors({});
         if (vendor) {
             setEditingVendor(vendor);
             setFormData({
                 name: vendor.name,
-                address: vendor.address || { line1: '', line2: '', city: '', pin: '', location: '' },
+                address: vendor.address || '',
                 phones: vendor.phone ? vendor.phone.join(', ') : '',
                 email: vendor.email || '',
                 gstNo: vendor.gstNo || '',
@@ -65,25 +66,19 @@ const Vendors = () => {
         setIsModalOpen(false);
         setFormData(initialForm);
         setEditingVendor(null);
+        setValidationErrors({});
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.name.trim()) return toast.warning('Vendor name is required');
-        if (!formData.address.line1.trim() || !formData.address.city.trim() || !formData.address.pin) {
-            return toast.warning('City, Pin, and Address Line 1 are required');
-        }
+        setValidationErrors({});
 
         try {
             setIsSubmitting(true);
 
             const payload = new FormData();
             payload.append('name', formData.name);
-            payload.append('address.line1', formData.address.line1);
-            if (formData.address.line2) payload.append('address.line2', formData.address.line2);
-            payload.append('address.city', formData.address.city);
-            payload.append('address.pin', formData.address.pin);
-            if (formData.address.location) payload.append('address.location', formData.address.location);
+            payload.append('address', formData.address);
 
             if (formData.email) payload.append('email', formData.email);
             if (formData.gstNo) payload.append('gstNo', formData.gstNo);
@@ -107,7 +102,16 @@ const Vendors = () => {
             fetchVendors();
             closeModal();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Vendor creation failed!');
+            if (error.response?.data?.errors) {
+                const errorsDict = {};
+                error.response.data.errors.forEach(err => {
+                    errorsDict[err.field] = err.message;
+                });
+                setValidationErrors(errorsDict);
+                toast.error('Please fix the validation errors below.');
+            } else {
+                toast.error(error.response?.data?.message || 'Vendor creation failed!');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -140,7 +144,7 @@ const Vendors = () => {
                         <p className="text-gray-500 text-lg font-medium">No Vendors Registered yet.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {vendors.map((vendor) => (
                             <div key={vendor._id} className="bg-white border text-left border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
 
@@ -169,7 +173,7 @@ const Vendors = () => {
                                     <div className="flex items-start gap-3 text-gray-600">
                                         <FiMapPin className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
                                         <span className="leading-tight">
-                                            {vendor.address?.line1}, {vendor.address?.city} {vendor.address?.pin}
+                                            {vendor.address}
                                         </span>
                                     </div>
                                     {vendor.phone && vendor.phone.length > 0 && (
@@ -196,7 +200,7 @@ const Vendors = () => {
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
 
-                    <div className="bg-white rounded-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[90vh] shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-lg relative z-10 flex flex-col max-h-[90vh] shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 shrink-0">
                             <h3 className="text-xl font-bold text-gray-800">
                                 {editingVendor ? 'Edit Vendor Profile' : 'Register New Vendor'}
@@ -207,50 +211,40 @@ const Vendors = () => {
                         </div>
 
                         {/* Scrollable Form Body */}
-                        <form id="vendorForm" onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
+                        <form id="vendorForm" onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar text-left">
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
+                            <div className="space-y-4">
+                                <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
-                                    <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400" placeholder="e.g. Fresh Farms Corp" />
+                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.name ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="e.g. Fresh Farms Corp" />
+                                    {validationErrors.name && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.name}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Owner / Contact Person</label>
-                                    <input type="text" value={formData.owner} onChange={(e) => setFormData({ ...formData, owner: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400" placeholder="John Doe" />
+                                    <input type="text" value={formData.owner} onChange={(e) => setFormData({ ...formData, owner: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.owner ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="John Doe" />
+                                    {validationErrors.owner && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.owner}</p>}
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">GST Number</label>
-                                    <input type="text" value={formData.gstNo} onChange={(e) => setFormData({ ...formData, gstNo: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400 text-sm font-mono" placeholder="22AAAAA0000A1Z5" />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Numbers</label>
+                                        <input type="text" value={formData.phones} onChange={(e) => setFormData({ ...formData, phones: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.phone ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="e.g. 555-1234, 555-5678" />
+                                        {validationErrors.phone && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.phone}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">GST Number</label>
+                                        <input type="text" value={formData.gstNo} onChange={(e) => setFormData({ ...formData, gstNo: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.gstNo ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-sm font-mono`} placeholder="22AAAAA0000A1Z5" />
+                                        {validationErrors.gstNo && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.gstNo}</p>}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Linked Email</label>
-                                    <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400" placeholder="contact@freshfarms.com" />
+                                    <input type="text" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.email ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="contact@freshfarms.com" />
+                                    {validationErrors.email && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.email}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Numbers (Comma separated)</label>
-                                    <input type="text" value={formData.phones} onChange={(e) => setFormData({ ...formData, phones: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400" placeholder="e.g. 555-1234, 555-5678" />
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-                                <h4 className="text-sm font-bold text-gray-800 mb-4 tracking-wide uppercase">Location Details</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Address Line 1</label>
-                                        <input type="text" required value={formData.address.line1} onChange={(e) => setFormData({ ...formData, address: { ...formData.address, line1: e.target.value } })} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none transition-all text-sm" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Address Line 2</label>
-                                        <input type="text" value={formData.address.line2} onChange={(e) => setFormData({ ...formData, address: { ...formData.address, line2: e.target.value } })} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none transition-all text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">City</label>
-                                        <input type="text" required value={formData.address.city} onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none transition-all text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">PIN / Zip Code</label>
-                                        <input type="number" required value={formData.address.pin} onChange={(e) => setFormData({ ...formData, address: { ...formData.address, pin: e.target.value } })} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none transition-all text-sm" />
-                                    </div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Address</label>
+                                    <textarea rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.address ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 resize-none`} placeholder="123 Farm Lane, Agriculture City, AP 500001" />
+                                    {validationErrors.address && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.address}</p>}
                                 </div>
                             </div>
 

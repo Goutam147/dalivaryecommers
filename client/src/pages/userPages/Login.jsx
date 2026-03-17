@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { FaLeaf } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import api from '../utils/api';
-import { useAppContext } from '../context/AppContext';
+import api from '../../utils/api';
+import { useAppContext } from '../../context/AppContext';
 
 const Login = () => {
     const { user, login } = useAppContext();

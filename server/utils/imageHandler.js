@@ -16,16 +16,17 @@ const ensureDirectory = async (dirPath) => {
  * Processes an image buffer, generates 3 WebP sizes, saves them to disk, and creates an ImagePath record
  * @param {Buffer} buffer - File buffer from multer memory storage
  * @param {String} originalName - Original uploaded filename
+ * @param {String} folderName - Subfolder in public/images to target (e.g. 'category' or 'products')
  * @returns {Promise<mongoose.Types.ObjectId>} - The ID of the created ImagePath document
  */
-const processAndSaveImage = async (buffer, originalName) => {
+const processAndSaveImage = async (buffer, originalName, folderName = 'products') => {
     // Determine base filename without extension to sanitize and timestamp it uniquely
     const baseName = path.parse(originalName).name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const fileName = `${baseName}-${uniqueSuffix}`;
 
     // Physical server directory where files live
-    const outputDir = path.join(__dirname, '..', 'public', 'images', 'products');
+    const outputDir = path.join(__dirname, '..', 'public', 'images', folderName);
     await ensureDirectory(outputDir);
 
     // Target dimensions for our 3 webp variants
@@ -48,8 +49,8 @@ const processAndSaveImage = async (buffer, originalName) => {
             .webp({ quality: 80 })
             .toFile(outputPath);
 
-        // Save the public-facing URL path
-        paths[key] = `/public/images/products/${fileName}${config.suffix}`;
+        // Save the URL path without /public prefix since express.static handles it
+        paths[key] = `/images/${folderName}/${fileName}${config.suffix}`;
     }
 
     // Create the record in our ImagePath collection

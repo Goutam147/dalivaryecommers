@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create an Axios instance with predefined configurations
 const api = axios.create({
-    baseURL: 'http://localhost:3000/api', // Maps to our Express backend
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api', // Maps to our Express backend
     withCredentials: true, // Crucial for sending cookies (JWT) in cross-origin requests
     headers: {
         'Content-Type': 'application/json',

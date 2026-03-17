@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
+import api from '../../utils/api';
 import { toast } from 'react-toastify';
 import { FiEdit2, FiX, FiCheck } from 'react-icons/fi';
 
@@ -11,7 +11,8 @@ const Categories = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
-    const [formData, setFormData] = useState({ name: '' });
+    const [formData, setFormData] = useState({ name: '', image: null });
+    const [imagePreview, setImagePreview] = useState(null);
 
     // Fetch Categories on component mount
     const fetchCategories = async () => {
@@ -35,18 +36,29 @@ const Categories = () => {
     const openModal = (category = null) => {
         if (category) {
             setEditingCategory(category);
-            setFormData({ name: category.name });
+            setFormData({ name: category.name, image: null });
+            setImagePreview(category.image?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${category.image.path.medium}` : null);
         } else {
             setEditingCategory(null);
-            setFormData({ name: '' });
+            setFormData({ name: '', image: null });
+            setImagePreview(null);
         }
         setIsModalOpen(true);
     };
 
     const closeModal = () => {
         setIsModalOpen(false);
-        setFormData({ name: '' });
+        setFormData({ name: '', image: null });
         setEditingCategory(null);
+        setImagePreview(null);
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFormData({ ...formData, image: file });
+            setImagePreview(URL.createObjectURL(file));
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -58,7 +70,8 @@ const Categories = () => {
             if (editingCategory) {
                 // Update
                 const payload = new FormData();
-                payload.append('name', formData.name); // Using FormData per backend requirements
+                payload.append('name', formData.name);
+                if (formData.image) payload.append('image', formData.image);
 
                 await api.put(`/category/${editingCategory._id}`, payload, {
                     headers: { 'Content-Type': 'multipart/form-data' }
@@ -68,6 +81,7 @@ const Categories = () => {
                 // Create
                 const payload = new FormData();
                 payload.append('name', formData.name);
+                if (formData.image) payload.append('image', formData.image);
 
                 await api.post('/category', payload, {
                     headers: { 'Content-Type': 'multipart/form-data' }
@@ -124,7 +138,14 @@ const Categories = () => {
                             <tbody className="divide-y divide-gray-100">
                                 {categories.map((category) => (
                                     <tr key={category._id} className="hover:bg-green-50/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-800">
+                                        <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-4">
+                                            {category.image?.path?.thumbnail ? (
+                                                <img src={`${import.meta.env.VITE_SERVER_URL}${category.image.path.thumbnail}`} alt={category.name} className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">
+                                                    {category.name.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
                                             {category.name}
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 text-sm">
@@ -174,6 +195,37 @@ const Categories = () => {
                                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 focus:bg-white outline-none transition-all placeholder-gray-400"
                                     placeholder="e.g. Beverages"
                                 />
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Category Image</label>
+                                <div className="mt-1 flex items-center gap-4">
+                                    {imagePreview ? (
+                                        <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shrink-0 shadow-sm">
+                                            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setImagePreview(null);
+                                                    setFormData({ ...formData, image: null });
+                                                }}
+                                                className="absolute top-1 right-1 bg-white/90 text-red-500 rounded-full p-1 shadow-sm hover:bg-red-50 hover:text-red-600 transition-colors"
+                                            >
+                                                <FiX className="w-3 h-3 text-red-600" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-20 h-20 rounded-xl bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center shrink-0">
+                                            <span className="text-xs text-gray-400 font-medium">No Image</span>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-colors cursor-pointer"
+                                    />
+                                </div>
                             </div>
 
                             <div className="flex gap-3 justify-end">

@@ -36,6 +36,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/category', categoryRoutes);
+app.use('/api/category-type', require('./routes/categoryTypeRoutes'));
 app.use('/api/brand', brandRoutes);
 app.use('/api/expense', expenseRoutes);
 app.use('/api/product', productRoutes);

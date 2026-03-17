@@ -9,7 +9,7 @@ const upload = multer();
 // @route   POST /api/category
 // @desc    Create a new category
 // @access  Private / Auth
-router.post('/', upload.none(), validateCategory, createCategory);
+router.post('/', upload.single('image'), validateCategory, createCategory);
 
 // @route   GET /api/category
 // @desc    Get all categories
@@ -19,6 +19,6 @@ router.get('/', getCategories);
 // @route   PUT /api/category/:id
 // @desc    Update a specific category
 // @access  Private / Auth
-router.put('/:id', upload.none(), validateCategory, updateCategory);
+router.put('/:id', upload.single('image'), validateCategory, updateCategory);
 
 module.exports = router;

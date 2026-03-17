@@ -8,11 +8,9 @@ const { createProduct, getProducts, getProductById, updateProduct } = require('.
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// We allow multiple fields of images: a 'thumbnail' image, and an array of 'images'
-const productUploads = upload.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'images', maxCount: 10 } // Allows multiple images uploaded concurrently array-style
-]);
+// We allow any fields of images, as the frontend generates dynamic fields `images_0`, `images_1`, `images_all` etc. 
+// depending on variations.
+const productUploads = upload.any();
 
 // @route   POST /api/product
 // @desc    Create a new Product

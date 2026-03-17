@@ -2,7 +2,8 @@ const { z } = require('zod');
 
 // Defined Zod schema for Category validation
 const categorySchema = z.object({
-    name: z.string().min(1, "Category name is required").trim()
+    name: z.string().min(1, "Category name is required").trim(),
+    image: z.string().optional()
 });
 
 // Middleware function to validate requests against the Zod schema

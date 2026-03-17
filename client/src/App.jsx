@@ -8,16 +8,19 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AppProvider } from './context/AppContext';
 import UserLayout from './layouts/UserLayout';
 import AdminLayout from './layouts/AdminLayout';
-import Welcome from './pages/Welcome';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Profile from './pages/Profile';
-import Users from './pages/Users';
-import Categories from './pages/Categories';
-import Brands from './pages/Brands';
-import Vendors from './pages/Vendors';
-import Logout from './pages/Logout';
-import Customers from './pages/Customers';
+import Welcome from './pages/userPages/Welcome';
+import Login from './pages/userPages/Login';
+import Logout from './pages/userPages/Logout';
+import Dashboard from './pages/adminPages/Dashboard';
+import Profile from './pages/adminPages/Profile';
+import Users from './pages/adminPages/Users';
+import Customers from './pages/adminPages/Customers';
+import Categories from './pages/adminPages/Categories';
+import CategoryTypes from './pages/adminPages/CategoryTypes';
+import SubCategories from './pages/adminPages/SubCategories';
+import Brands from './pages/adminPages/Brands';
+import Vendors from './pages/adminPages/Vendors';
+import Products from './pages/adminPages/Products';
 
 const router = createBrowserRouter([
   {
@@ -52,6 +55,9 @@ const router = createBrowserRouter([
       { path: 'users', element: <Users /> },
       { path: 'customers', element: <Customers /> },
       { path: 'categories', element: <Categories /> },
+      { path: 'category-types', element: <CategoryTypes /> },
+      { path: 'sub-categories', element: <SubCategories /> },
+      { path: 'products', element: <Products /> },
       { path: 'brands', element: <Brands /> },
       { path: 'vendors', element: <Vendors /> },
     ],

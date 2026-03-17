@@ -1,19 +1,24 @@
 const Category = require('../model/Category');
-
+const { processAndSaveImage } = require('../utils/imageHandler');
+const ImagePath = require('../model/ImagePath');
 // @desc    Create new category
 // @route   POST /api/category
 // @access  Private / Auth
 const createCategory = async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, image } = req.body;
 
-        // Check if a category with this exact name already exists (case-insensitive)
         const categoryExists = await Category.findOne({ name: new RegExp(`^${name}$`, 'i') });
         if (categoryExists) {
             return res.status(400).json({ success: false, message: "Category with this name already exists" });
         }
 
-        const category = await Category.create({ name });
+        let imageId = req.body.image || null; // fallback if passed by an ID string
+        if (req.file) {
+            imageId = await processAndSaveImage(req.file.buffer, req.file.originalname, 'category');
+        }
+
+        const category = await Category.create({ name, image: imageId });
         res.status(201).json({ success: true, message: "Category created successfully", data: category });
     } catch (error) {
         console.error("Create Category Error: ", error);
@@ -26,7 +31,7 @@ const createCategory = async (req, res) => {
 // @access  Public
 const getCategories = async (req, res) => {
     try {
-        const categories = await Category.find().sort({ createdAt: -1 });
+        const categories = await Category.find().populate('image').sort({ createdAt: -1 });
         res.status(200).json({ success: true, count: categories.length, data: categories });
     } catch (error) {
         console.error("Get Categories Error: ", error);
@@ -52,10 +57,15 @@ const updateCategory = async (req, res) => {
             }
         }
 
-        const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
+        const updateData = { ...req.body };
+        if (req.file) {
+            updateData.image = await processAndSaveImage(req.file.buffer, req.file.originalname, 'category');
+        }
+
+        const category = await Category.findByIdAndUpdate(req.params.id, updateData, {
             new: true,
             runValidators: true
-        });
+        }).populate('image');
 
         if (!category) {
             return res.status(404).json({ success: false, message: "Category not found" });

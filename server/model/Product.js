@@ -13,7 +13,6 @@ const productTypeSchema = new mongoose.Schema({
     price: { type: Number, required: true },
     mrp: { type: Number, required: true },
     description: { type: String, trim: true },
-    images: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ImagePath' }],
     maxOrder: { type: Number, default: 1 },
     info: { type: mongoose.Schema.Types.Mixed }, // Mixed type allows any object structure
     verified: { type: Boolean, default: false } // Boolean default is false (0)
@@ -38,12 +37,18 @@ const productSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ImagePath'
     }],
-    imgType: {
-        type: String,
-        enum: ['all', 'separate'],
-        default: 'all',
-        trim: true
+    categoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CategoryType'
     },
+    brand: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Brand'
+    },
+    images: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ImagePath'
+    }],
     thumbnail: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ImagePath'
@@ -66,6 +71,11 @@ const productSchema = new mongoose.Schema({
     expectedTime: {
         type: String,
         trim: true // e.g., '30 mins', '1 hour'
+    },
+    active: {
+        type: Number,
+        enum: [0, 1],
+        default: 1
     }
 }, {
     timestamps: true,

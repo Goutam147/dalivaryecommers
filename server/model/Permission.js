@@ -12,6 +12,11 @@ const permissionSchema = new mongoose.Schema({
         required: true,
         unique: true,
         trim: true
+    },
+    active: {
+        type: Number,
+        enum: [0, 1],
+        default: 1
     }
 }, {
     timestamps: true,

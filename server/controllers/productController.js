@@ -8,20 +8,23 @@ const createProduct = async (req, res) => {
     try {
         const productData = req.validatedData; // This holds the parsed JSON from FormData
 
-        // Process thumbnail if uploaded
-        if (req.files && req.files.thumbnail && req.files.thumbnail.length > 0) {
-            const thumbnailFile = req.files.thumbnail[0];
+        // Process thumbnail if uploaded (multer.any() returns an array of files)
+        const thumbnailFiles = req.files ? req.files.filter(f => f.fieldname === 'thumbnail') : [];
+        if (thumbnailFiles.length > 0) {
+            const thumbnailFile = thumbnailFiles[0];
             const imageId = await processAndSaveImage(thumbnailFile.buffer, thumbnailFile.originalname);
             productData.thumbnail = imageId;
         }
 
-        // Processing 'images' array for the Product.unlinkImg list
-        if (req.files && req.files.images && req.files.images.length > 0) {
-            productData.unlinkImg = [];
-            for (const file of req.files.images) {
-                const imageId = await processAndSaveImage(file.buffer, file.originalname);
-                productData.unlinkImg.push(imageId);
+        // Process generalized Image gallery natively mapping to root `images` instead of nested structures
+        const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]') : [];
+        if (galleryFiles.length > 0) {
+            const uploadedImageIds = [];
+            for (const file of galleryFiles) {
+                const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
+                uploadedImageIds.push(imageId);
             }
+            productData.images = uploadedImageIds;
         }
 
         const product = await Product.create(productData);
@@ -39,6 +42,8 @@ const getProducts = async (req, res) => {
     try {
         const products = await Product.find()
             .populate('thumbnail') // Automatically populates the ImagePath record
+            .populate('brand')
+            .populate('categoryId')
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, count: products.length, data: products });
     } catch (error) {
@@ -55,7 +60,9 @@ const getProductById = async (req, res) => {
         const product = await Product.findById(req.params.id)
             .populate('thumbnail')
             .populate('unlinkImg')
-            .populate('types.images');
+            .populate('images')
+            .populate('brand')
+            .populate('categoryId');
 
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found" });
@@ -78,28 +85,26 @@ const updateProduct = async (req, res) => {
         const productData = req.validatedData;
 
         // Process new thumbnail if uploaded
-        if (req.files && req.files.thumbnail && req.files.thumbnail.length > 0) {
-            const thumbnailFile = req.files.thumbnail[0];
+        const thumbnailFiles = req.files ? req.files.filter(f => f.fieldname === 'thumbnail') : [];
+        if (thumbnailFiles.length > 0) {
+            const thumbnailFile = thumbnailFiles[0];
             const imageId = await processAndSaveImage(thumbnailFile.buffer, thumbnailFile.originalname);
             productData.thumbnail = imageId;
         }
 
-        // Process new 'images' array and APPEND them, or potentially overwrite based on business logic. 
-        // Here we append to unlinkImg dynamically using MongoDB $push.
-        if (req.files && req.files.images && req.files.images.length > 0) {
+        // Process updated generalized gallery logic appending directly to root `images`
+        const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]') : [];
+        if (galleryFiles.length > 0) {
             const newImageIds = [];
-            for (const file of req.files.images) {
-                const imageId = await processAndSaveImage(file.buffer, file.originalname);
+            for (const file of galleryFiles) {
+                const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
                 newImageIds.push(imageId);
             }
-            productData.$push = { unlinkImg: { $each: newImageIds } };
+            // Retain existing image references, merge with newly generated ImagePaths
+            productData.images = [...(productData.images || []), ...newImageIds];
         }
 
         let updateQuery = { $set: productData };
-        if (productData.$push) {
-            updateQuery.$push = productData.$push;
-            delete productData.$push;
-        }
 
         const product = await Product.findByIdAndUpdate(req.params.id, updateQuery, {
             new: true,

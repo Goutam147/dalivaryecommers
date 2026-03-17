@@ -6,7 +6,7 @@ import {
     MdKeyboardArrowDown, MdKeyboardArrowRight, MdSettings
 } from 'react-icons/md';
 import { FaTags, FaUserCircle } from 'react-icons/fa';
-import { FiX, FiMenu, FiChevronLeft, FiChevronRight, FiUsers } from 'react-icons/fi';
+import { FiX, FiMenu, FiChevronLeft, FiChevronRight, FiUsers, FiShoppingBag } from 'react-icons/fi';
 
 const Sidebar = () => {
     const { sidebarOpen, toggleSidebar } = useAppContext();
@@ -31,11 +31,20 @@ const Sidebar = () => {
         { name: 'Dashboard', path: '/admin/dashboard', icon: <MdDashboard className="w-5 h-5 shrink-0" /> },
         { name: 'Users', path: '/admin/users', icon: <MdPeople className="w-5 h-5 shrink-0" /> },
         { name: 'Customers', path: '/admin/customers', icon: <FiUsers className="w-5 h-5 shrink-0" /> },
-        { name: 'Categories', path: '/admin/categories', icon: <MdCategory className="w-5 h-5 shrink-0" /> },
+        {
+            name: 'Categories',
+            icon: <MdCategory className="w-5 h-5 shrink-0" />,
+            children: [
+                { name: 'Main Category', path: '/admin/categories' },
+                { name: 'Category Type', path: '/admin/category-types' },
+                { name: 'Sub Category', path: '/admin/sub-categories' },
+            ]
+        },
         { name: 'Brands', path: '/admin/brands', icon: <FaTags className="w-4 h-4 ml-0.5 shrink-0" /> },
         { name: 'Vendors', path: '/admin/vendors', icon: <MdStorefront className="w-5 h-5 shrink-0" /> },
+        { name: 'Products', path: '/admin/products', icon: <FiShoppingBag className="w-5 h-5 shrink-0" /> },
         {
-            name: 'Settings (Demo)',
+            name: 'Settings',
             icon: <MdSettings className="w-5 h-5 shrink-0" />,
             children: [
                 { name: 'General', path: '/admin/settings/general' },
