@@ -42,6 +42,7 @@ app.use('/api/brand', brandRoutes);
 app.use('/api/expense', expenseRoutes);
 app.use('/api/product', productRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/time', require('./routes/timeRoutes'));
 
 // Base route
 app.get('/', (req, res) => {

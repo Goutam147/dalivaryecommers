@@ -30,6 +30,7 @@ const orderItemSchema = new mongoose.Schema({
 // Main OrderMaster schema
 const orderMasterSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    timeslotId: { type: mongoose.Schema.Types.ObjectId, ref: 'Time', required: true },
     shiftAddress: {
         type: mongoose.Schema.Types.Mixed, // Allows saving an object containing house no, street, or just a string ID
         required: true

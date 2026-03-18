@@ -10,22 +10,26 @@ const chargeSchema = z.object({
 // Schema for elements inside the types array
 const productTypeSchema = z.object({
     qty: z.number({ coerce: true }).min(1, "Quantity must be at least 1"),
+    unitId: z.string().min(1, "Unit ID is required"),
     price: z.number({ coerce: true }).min(0, "Price must be positive"),
     mrp: z.number({ coerce: true }).min(0, "MRP must be positive"),
     description: z.string().optional(),
     maxOrder: z.number({ coerce: true }).optional().default(1),
     info: z.any().optional(),
-    verified: z.boolean({ coerce: true }).optional().default(false)
+    verified: z.boolean({ coerce: true }).optional().default(false),
+    veg: z.boolean({ coerce: true }).optional().default(false)
 });
 
 // Main Product schema
 const productValidationSchema = z.object({
     name: z.string().min(1, "Product name is required").trim(),
     description: z.string().optional(),
-    title: z.array(z.string()).optional().default([]),
-    brand: z.string().optional(),
-    categoryId: z.string().optional(),
-    unit: z.string().min(1, "Unit is required").trim(),
+    title: z.union([z.array(z.string()), z.string()]).optional().transform((val) => {
+        if (typeof val === 'string') return val.split(',').map(t => t.trim()).filter(t => t);
+        return val || [];
+    }).default([]),
+    brandId: z.string().nullish(),
+    categoryTypeId: z.string().nullish(),
     types: z.array(productTypeSchema).optional().default([]),
     returnPolicy: z.string().optional(),
     review: z.object({
@@ -33,7 +37,8 @@ const productValidationSchema = z.object({
         starValue: z.number({ coerce: true }).optional().default(0.0)
     }).optional(),
     charges: z.array(chargeSchema).optional().default([]),
-    expectedTime: z.string().optional()
+    expectedTime: z.string().optional(),
+    active: z.number({ coerce: true }).optional().default(1)
 });
 
 const validateProduct = (req, res, next) => {

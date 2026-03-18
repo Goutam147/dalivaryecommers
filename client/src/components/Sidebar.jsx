@@ -42,12 +42,20 @@ const Sidebar = () => {
         },
         { name: 'Brands', path: '/admin/brands', icon: <FaTags className="w-4 h-4 ml-0.5 shrink-0" /> },
         { name: 'Vendors', path: '/admin/vendors', icon: <MdStorefront className="w-5 h-5 shrink-0" /> },
-        { name: 'Products', path: '/admin/products', icon: <FiShoppingBag className="w-5 h-5 shrink-0" /> },
+        {
+            name: 'Products',
+            icon: <FiShoppingBag className="w-5 h-5 shrink-0" />,
+            children: [
+                { name: 'Add Product', path: '/admin/products/add' },
+                { name: 'Manage Product', path: '/admin/products' },
+            ]
+        },
         {
             name: 'Settings',
             icon: <MdSettings className="w-5 h-5 shrink-0" />,
             children: [
                 { name: 'Set Unit', path: '/admin/units' },
+                { name: 'Time Slot', path: '/admin/settings/time-slots' },
                 { name: 'General', path: '/admin/settings/general' },
                 { name: 'Advanced', path: '/admin/settings/advanced' },
             ]

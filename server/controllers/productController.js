@@ -41,9 +41,11 @@ const createProduct = async (req, res) => {
 const getProducts = async (req, res) => {
     try {
         const products = await Product.find()
-            .populate('thumbnail') // Automatically populates the ImagePath record
-            .populate('brand')
-            .populate('categoryId')
+            .populate('thumbnail')
+            .populate('images')
+            .populate('brandId')
+            .populate('categoryTypeId')
+            .populate('types.unitId')
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, count: products.length, data: products });
     } catch (error) {
@@ -61,8 +63,9 @@ const getProductById = async (req, res) => {
             .populate('thumbnail')
             .populate('unlinkImg')
             .populate('images')
-            .populate('brand')
-            .populate('categoryId');
+            .populate('brandId')
+            .populate('categoryTypeId')
+            .populate('types.unitId');
 
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found" });
@@ -88,28 +91,26 @@ const updateProduct = async (req, res) => {
         const thumbnailFiles = req.files ? req.files.filter(f => f.fieldname === 'thumbnail') : [];
         if (thumbnailFiles.length > 0) {
             const thumbnailFile = thumbnailFiles[0];
-            const imageId = await processAndSaveImage(thumbnailFile.buffer, thumbnailFile.originalname);
+            const imageId = await processAndSaveImage(thumbnailFile.buffer, thumbnailFile.originalname, 'products');
             productData.thumbnail = imageId;
         }
 
         // Process updated generalized gallery logic appending directly to root `images`
         const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]') : [];
         if (galleryFiles.length > 0) {
-            const newImageIds = [];
+            const uploadedImageIds = [];
             for (const file of galleryFiles) {
                 const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
-                newImageIds.push(imageId);
+                uploadedImageIds.push(imageId);
             }
-            // Retain existing image references, merge with newly generated ImagePaths
-            productData.images = [...(productData.images || []), ...newImageIds];
+            // If images were already present in productData as IDs (from existing list), merge them
+            productData.images = [...(productData.images || []), ...uploadedImageIds];
         }
 
-        let updateQuery = { $set: productData };
-
-        const product = await Product.findByIdAndUpdate(req.params.id, updateQuery, {
+        const product = await Product.findByIdAndUpdate(req.params.id, productData, {
             new: true,
             runValidators: true
-        }).populate('thumbnail').populate('unlinkImg');
+        }).populate('thumbnail').populate('images').populate('brandId').populate('categoryTypeId').populate('types.unitId');
 
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found" });
@@ -125,9 +126,51 @@ const updateProduct = async (req, res) => {
     }
 };
 
+// @desc    Delete Product
+// @route   DELETE /api/product/:id
+// @access  Private / Auth
+const deleteProduct = async (req, res) => {
+    try {
+        const product = await Product.findByIdAndDelete(req.params.id);
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+        res.status(200).json({ success: true, message: "Product deleted successfully" });
+    } catch (error) {
+        console.error("Delete Product Error: ", error);
+        res.status(500).json({ success: false, message: "Server error deleting product" });
+    }
+};
+
+// @desc    Delete Specific Product Image
+// @route   DELETE /api/product/:productId/images/:imageId
+// @access  Private / Auth
+const deleteProductImage = async (req, res) => {
+    try {
+        const { productId, imageId } = req.params;
+
+        const product = await Product.findByIdAndUpdate(
+            productId,
+            { $pull: { images: imageId } },
+            { new: true }
+        ).populate('images');
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        res.status(200).json({ success: true, message: "Image removed from product gallery", data: product });
+    } catch (error) {
+        console.error("Delete Product Image Error: ", error);
+        res.status(500).json({ success: false, message: "Server error removing image" });
+    }
+};
+
 module.exports = {
     createProduct,
     getProducts,
     getProductById,
-    updateProduct
+    updateProduct,
+    deleteProduct,
+    deleteProductImage
 };

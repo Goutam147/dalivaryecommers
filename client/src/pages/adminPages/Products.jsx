@@ -1,43 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
-import { FiEdit2, FiX, FiCheck, FiPlus, FiTrash2, FiImage, FiEye } from 'react-icons/fi';
+import { FiEdit2, FiX, FiCheck, FiPlus, FiTrash2, FiImage, FiEye, FiSearch, FiFilter, FiExternalLink } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 const Products = () => {
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    // Relational Data for Dropdowns
+    // Relational Data for Dropdowns (Used in Edit Modal)
     const [categories, setCategories] = useState([]);
     const [brands, setBrands] = useState([]);
+    const [units, setUnits] = useState([]);
 
     // Modal State
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [deletingProduct, setDeletingProduct] = useState(null);
 
-    // Initial Form State matching backend Schema
+    // Form State for Edit
     const initialFormState = {
         name: '',
         description: '',
-        title: '', // comma separated strings
-        unit: 'pcs',
-        categoryId: null,
-        brand: null,
+        title: '',
+        categoryTypeId: null,
+        brandId: null,
         expectedTime: '',
         returnPolicy: '',
         active: 1,
-        types: [{ qty: 1, price: 0, mrp: 0, description: '', maxOrder: 1, verified: false }],
+        types: [],
         charges: []
     };
 
     const [formData, setFormData] = useState(initialFormState);
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
-
-    // Single array holding global gallery files
     const [imageFiles, setImageFiles] = useState([]);
+
+    // Common Charge Names for Dropdown
+    const chargeOptions = [
+        "Delivery Charge",
+        "Packing Charge",
+        "GST",
+        "Service Charge",
+        "VAT",
+        "CGST",
+        "SGST",
+        "IGST",
+        "Other"
+    ];
 
     // Details Modal State
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -46,20 +64,22 @@ const Products = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [prodRes, catRes, brandRes] = await Promise.all([
+            const [prodRes, catRes, brandRes, unitRes] = await Promise.all([
                 api.get('/product'),
                 api.get('/category-type'),
-                api.get('/brand')
+                api.get('/brand'),
+                api.get('/unit')
             ]);
 
             if (prodRes.data.success) setProducts(prodRes.data.data);
             if (catRes.data.success) {
-                // map to react-select options
                 setCategories(catRes.data.data.map(c => ({ value: c._id, label: c.name })));
             }
             if (brandRes.data.success) {
-                // map to react-select options
                 setBrands(brandRes.data.data.map(b => ({ value: b._id, label: b.name })));
+            }
+            if (unitRes.data.success) {
+                setUnits(unitRes.data.data.map(u => ({ value: u._id, label: u.code || u.name })));
             }
         } catch (error) {
             toast.error('Failed to load required data');
@@ -72,41 +92,39 @@ const Products = () => {
         fetchData();
     }, []);
 
-    const openModal = (product = null) => {
-        if (product) {
-            setEditingProduct(product);
-            // Translate array of strings back to comma separated for textarea/input if needed
-            setFormData({
-                name: product.name || '',
-                description: product.description || '',
-                title: product.title ? product.title.join(', ') : '',
-                unit: product.unit || 'pcs',
-                categoryId: product.categoryId ? { value: product.categoryId._id || product.categoryId, label: product.categoryId.name || 'Selected' } : null,
-                brand: product.brand ? { value: product.brand._id || product.brand, label: product.brand.name || 'Selected' } : null,
-                expectedTime: product.expectedTime || '',
-                returnPolicy: product.returnPolicy || '',
-                active: product.active ?? 1,
-                types: product.types && product.types.length > 0 ? product.types : initialFormState.types,
-                charges: product.charges || []
-            });
-            setThumbnailPreview(product.thumbnail?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.medium}` : null);
-        } else {
-            setEditingProduct(null);
-            setFormData(initialFormState);
-            setThumbnailPreview(null);
-        }
+    const openEditModal = (product) => {
+        setEditingProduct(product);
+
+        setFormData({
+            name: product.name || '',
+            description: product.description || '',
+            title: product.title ? product.title.join(', ') : '',
+            categoryTypeId: product.categoryTypeId ? { value: product.categoryTypeId._id || product.categoryTypeId, label: product.categoryTypeId.name || 'Selected' } : null,
+            brandId: product.brandId ? { value: product.brandId._id || product.brandId, label: product.brandId.name || 'Selected' } : null,
+            expectedTime: product.expectedTime || '',
+            returnPolicy: product.returnPolicy || 'no return',
+            active: product.active ?? 1,
+            types: product.types && product.types.length > 0
+                ? product.types.map(t => ({
+                    ...t,
+                    unitId: t.unitId?._id || t.unitId || '',
+                    info: t.info || ''
+                }))
+                : [],
+            charges: product.charges && product.charges.length > 0
+                ? product.charges.map(c => ({ ...c }))
+                : [],
+            images: product.images ? product.images.map(img => img._id) : []
+        });
+        setThumbnailPreview(product.thumbnail?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.medium}` : null);
         setThumbnailFile(null);
         setImageFiles([]);
-        setIsModalOpen(true);
+        setIsEditModalOpen(true);
     };
 
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setFormData(initialFormState);
+    const closeEditModal = () => {
+        setIsEditModalOpen(false);
         setEditingProduct(null);
-        setThumbnailFile(null);
-        setThumbnailPreview(null);
-        setImageFiles([]);
     };
 
     const openDetailsModal = (product) => {
@@ -119,7 +137,6 @@ const Products = () => {
         setViewingProduct(null);
     };
 
-    // --- Dynamic Nested Handlers ---
     const handleTypeChange = (index, field, value) => {
         const newTypes = [...formData.types];
         newTypes[index][field] = value;
@@ -129,7 +146,7 @@ const Products = () => {
     const addTypeRow = () => {
         setFormData({
             ...formData,
-            types: [...formData.types, { qty: 1, price: 0, mrp: 0, description: '', maxOrder: 1, verified: false }]
+            types: [...formData.types, { qty: 1, unitId: '', price: 0, mrp: 0, description: '', maxOrder: 1, verified: false, veg: false, info: '' }]
         });
     };
 
@@ -137,6 +154,40 @@ const Products = () => {
         if (formData.types.length <= 1) return toast.warning("Product must have at least one variation type.");
         const newTypes = formData.types.filter((_, i) => i !== index);
         setFormData({ ...formData, types: newTypes });
+    };
+
+    const handleChargeChange = (index, field, value) => {
+        const newCharges = [...formData.charges];
+        newCharges[index][field] = value;
+        setFormData({ ...formData, charges: newCharges });
+    };
+
+    const handleDeleteGalleryImage = async (productId, imageId) => {
+        if (!window.confirm("Are you sure you want to remove this image from the gallery?")) return;
+
+        try {
+            const res = await api.delete(`/product/${productId}/images/${imageId}`);
+            if (res.data.success) {
+                toast.success("Image removed");
+                // Update both lists to reflect change
+                setViewingProduct(res.data.data);
+                fetchData(); // Refresh the main table
+            }
+        } catch (error) {
+            toast.error("Failed to remove image");
+        }
+    };
+
+    const addChargeRow = () => {
+        setFormData({
+            ...formData,
+            charges: [...formData.charges, { name: '', amount: '', type: 'fixed' }]
+        });
+    };
+
+    const removeChargeRow = (index) => {
+        const newCharges = formData.charges.filter((_, i) => i !== index);
+        setFormData({ ...formData, charges: newCharges });
     };
 
     const handleThumbnailChange = (e) => {
@@ -152,31 +203,32 @@ const Products = () => {
         setImageFiles(files);
     };
 
-    const handleSubmit = async (e) => {
+    const handleUpdate = async (e) => {
         e.preventDefault();
-        if (!formData.name.trim()) return toast.warning('Product name is required');
-        if (!formData.unit.trim()) return toast.warning('Unit is required');
-
         try {
             setIsSubmitting(true);
 
             const payloadObject = {
                 ...formData,
-                categoryId: formData.categoryId ? formData.categoryId.value : null,
-                brand: formData.brand ? formData.brand.value : null,
-                title: formData.title.split(',').map(t => t.trim()).filter(t => t), // clean comma separated string to array
+                charges: formData.charges
+                    .filter(c => c.name.trim() !== '' && c.amount !== '')
+                    .map(c => ({
+                        ...c,
+                        amount: Number(c.amount)
+                    })),
+                categoryTypeId: formData.categoryTypeId ? formData.categoryTypeId.value : null,
+                brandId: formData.brandId ? formData.brandId.value : null,
                 types: formData.types.map(t => ({
                     ...t,
                     qty: Number(t.qty),
                     price: Number(t.price),
                     mrp: Number(t.mrp),
                     maxOrder: Number(t.maxOrder)
-                }))
+                })),
+                images: formData.images || []
             };
 
             const payloadData = new FormData();
-
-            // The backend Validator specifically parses a single `data` field to navigate deep object structures
             payloadData.append('data', JSON.stringify(payloadObject));
 
             if (thumbnailFile) {
@@ -189,350 +241,393 @@ const Products = () => {
                 });
             }
 
-            if (editingProduct) {
-                await api.put(`/product/${editingProduct._id}`, payloadData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                toast.success('Product updated dramatically!');
-            } else {
-                await api.post('/product', payloadData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                toast.success('Product created powerfully!');
-            }
+            await api.put(`/product/${editingProduct._id}`, payloadData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            toast.success('Product updated successfully!');
             fetchData();
-            closeModal();
+            closeEditModal();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Action failed!');
-            console.error(error.response?.data?.errors);
+            toast.error(error.response?.data?.message || 'Update failed!');
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const handleDelete = async () => {
+        if (!deletingProduct) return;
+        try {
+            setIsSubmitting(true);
+            await api.delete(`/product/${deletingProduct._id}`);
+            toast.success('Product deleted successfully');
+            fetchData();
+            setIsDeleteModalOpen(false);
+            setDeletingProduct(null);
+        } catch (error) {
+            toast.error('Failed to delete product');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.brandId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const labelStyle = "block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2";
+    const inputStyle = "w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-sm transition-all";
+
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[600px] animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 lg:p-8 border-b border-gray-100 bg-white/50">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[600px] flex flex-col relative animate-in fade-in duration-500">
+            {/* Table Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-6 border-b border-gray-200 bg-gray-50/30 gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Manage Products</h2>
-                    <p className="text-gray-500 text-sm mt-1">Configure advanced product catalogs, sizes, and pricing variations.</p>
+                    <h2 className="text-xl font-bold text-gray-800">Product Management</h2>
+                    <p className="text-sm text-gray-500">Manage your product catalog, visibility and inventory.</p>
                 </div>
-                <button
-                    onClick={() => openModal()}
-                    className="mt-4 sm:mt-0 bg-green-600 hover:bg-green-700 shadow-sm shadow-green-600/20 text-white px-5 py-2.5 rounded-xl font-semibold transition-all transform active:scale-95 flex items-center gap-2"
-                >
-                    <FiPlus className="w-5 h-5" />
-                    Add Product
-                </button>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <button
+                        onClick={() => navigate('/admin/products/add')}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                    >
+                        <FiPlus /> New Product
+                    </button>
+                </div>
             </div>
 
-            <div className="flex-1 p-6 lg:p-8">
+            <div className="flex-1 p-0 overflow-x-auto">
                 {loading ? (
-                    <div className="flex justify-center items-center h-48">
-                        <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+                    <div className="flex flex-col justify-center items-center h-64 gap-4">
+                        <div className="w-8 h-8 border-4 border-green-100 border-t-green-600 rounded-full animate-spin"></div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Loading Inventory...</p>
                     </div>
                 ) : products.length === 0 ? (
-                    <div className="text-center py-20 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                        <p className="text-gray-500 text-lg font-medium">No Products Found. Launch your first offering!</p>
+                    <div className="flex-1 flex flex-col justify-center items-center py-32 px-6 text-center animate-in fade-in zoom-in duration-700">
+                        <div className="w-24 h-24 bg-gray-50 rounded-3xl flex items-center justify-center mb-8 border border-gray-100 shadow-sm">
+                            <FiImage className="w-10 h-10 text-gray-200" />
+                        </div>
+                        <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-3">Inventory is Empty</h3>
+                        <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed mb-10">
+                            You haven't registered any products yet. Start building your digital catalog by adding your first item record.
+                        </p>
+                        <button
+                            onClick={() => navigate('/admin/products/add')}
+                            className="bg-green-600 hover:bg-green-700 text-white px-10 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-green-600/20 active:scale-95 flex items-center gap-3"
+                        >
+                            <FiPlus className="w-4 h-4" /> Initialize Catalog
+                        </button>
+                    </div>
+                ) : filteredProducts.length === 0 ? (
+                    <div className="flex-1 flex flex-col justify-center items-center py-32 text-center animate-in fade-in duration-500">
+                        <div className="bg-gray-50 p-4 rounded-full mb-6">
+                            <FiSearch className="w-8 h-8 text-gray-300" />
+                        </div>
+                        <h4 className="text-lg font-bold text-gray-800 tracking-tight">Search Limit Reached</h4>
+                        <p className="text-sm text-gray-400 mt-2">No items found matching <span className="font-bold text-gray-600">"{searchTerm}"</span>. Try adjusting your filter parameters.</p>
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="mt-6 text-xs font-black text-green-600 uppercase tracking-widest hover:underline"
+                        >
+                            Clear All Filters
+                        </button>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider font-semibold">
-                                    <th className="px-6 py-4">Product Name</th>
-                                    <th className="px-6 py-4 text-center">Variations</th>
-                                    <th className="px-6 py-4 text-center">Base Unit</th>
-                                    <th className="px-6 py-4 text-center">Status</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {products.map((product) => (
-                                    <tr key={product._id} className="hover:bg-green-50/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-4">
-                                            {product.thumbnail?.path?.thumbnail ? (
-                                                <img src={`${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.thumbnail}`} alt={product.name} className="w-12 h-12 rounded-lg object-cover border border-gray-200 bg-white" />
-                                            ) : (
-                                                <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">
-                                                    <FiImage />
-                                                </div>
-                                            )}
-                                            <div className="flex flex-col">
-                                                <span>{product.name}</span>
-                                                <span className="text-xs text-gray-400 font-normal truncate max-w-[200px]">{product.description || 'No description'}</span>
+                    <table className="w-full text-left border-collapse min-w-[1000px]">
+                        <thead>
+                            <tr className="bg-gray-50/80 border-b border-gray-200">
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Product & Variations</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Category & Brand</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Variants</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {filteredProducts.map((product) => (
+                                <tr key={product._id} className="hover:bg-gray-50/50 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                                                {product.thumbnail?.path?.thumbnail ? (
+                                                    <img src={`${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.thumbnail}`} className="w-full h-full object-cover" />
+                                                ) : <FiImage className="w-full h-full p-3 text-gray-300" />}
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="bg-blue-50 text-blue-600 py-1 px-3 rounded-full text-xs font-bold border border-blue-100">
-                                                {product.types?.length || 0} configurations
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-500 text-center text-sm font-semibold uppercase">
-                                            {product.unit}
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            {product.active === 1 ? (
-                                                <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Active
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Inactive
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => openDetailsModal(product)}
-                                                className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors inline-block mr-2"
-                                                title="View Details"
-                                            >
-                                                <FiEye className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => openModal(product)}
-                                                className="p-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors inline-block"
-                                                title="Edit Product"
-                                            >
-                                                <FiEdit2 className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-gray-800">{product.name}</span>
+                                                <span className="text-xs text-gray-400 truncate max-w-[250px]">{product.description || 'No description'}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-gray-700">{product.brandId?.name || 'No Brand'}</span>
+                                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit mt-1 uppercase">{product.categoryTypeId?.name || 'Uncategorized'}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100">
+                                            {product.types?.length || 0} ITEMS
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${product.active === 1
+                                            ? 'bg-green-50 text-green-700 border-green-200'
+                                            : 'bg-gray-100 text-gray-500 border-gray-200'
+                                            }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${product.active === 1 ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                                            {product.active === 1 ? 'Active' : 'Draft'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button onClick={() => openDetailsModal(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Info"><FiEye /></button>
+                                            <button onClick={() => openEditModal(product)} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Quick Edit"><FiEdit2 /></button>
+                                            <button onClick={() => { setDeletingProduct(product); setIsDeleteModalOpen(true); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Remove"><FiTrash2 /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 )}
             </div>
 
-            {/* Modal / Dialog */}
-            {isModalOpen && (
+            {/* Edit Modal (Aligned with AddProduct Clean Style) */}
+            {isEditModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
-
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-10 animate-in zoom-in-95 duration-200 flex flex-col">
-                        <div className="sticky top-0 bg-white/80 backdrop-blur-md z-20 flex justify-between items-center p-6 border-b border-gray-100 shadow-sm">
-                            <h3 className="text-xl font-bold text-gray-800">
-                                {editingProduct ? 'Edit Complex Product' : 'Construct New Product'}
-                            </h3>
-                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors p-2 bg-gray-50 rounded-full hover:bg-gray-100">
-                                <FiX className="w-5 h-5" />
-                            </button>
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeEditModal} />
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col">
+                        <div className="px-6 py-4 bg-white border-b border-gray-200 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-gray-800">Edit Product</h3>
+                            <button onClick={closeEditModal} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"><FiX /></button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-10">
-
-                            {/* Core Identity System */}
-                            <section>
-                                <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <span className="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
-                                    Core Identity
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Product Name <span className="text-red-500">*</span></label>
-                                        <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none transition-all placeholder-gray-400" placeholder="e.g. Organic Almonds" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Unit Descriptor <span className="text-red-500">*</span></label>
-                                        <input type="text" required value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none transition-all placeholder-gray-400" placeholder="e.g. kg, pcs, ltr" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Category Assignment</label>
-                                        <Select
-                                            options={categories}
-                                            value={formData.categoryId}
-                                            onChange={(selectedOption) => setFormData({ ...formData, categoryId: selectedOption })}
-                                            placeholder="Select Category..."
-                                            className="w-full text-sm"
-                                            styles={{
-                                                control: (baseStyles) => ({
-                                                    ...baseStyles,
-                                                    borderRadius: '0.75rem',
-                                                    padding: '0.35rem',
-                                                    borderColor: '#e5e7eb',
-                                                    boxShadow: 'none',
-                                                    '&:hover': { borderColor: '#22c55e' }
-                                                }),
-                                                menu: (base) => ({ ...base, zIndex: 100 })
-                                            }}
-                                            isClearable
-                                            isSearchable={true}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Brand Origin</label>
-                                        <Select
-                                            options={brands}
-                                            value={formData.brand}
-                                            onChange={(selectedOption) => setFormData({ ...formData, brand: selectedOption })}
-                                            placeholder="Search Brand..."
-                                            className="w-full text-sm"
-                                            styles={{
-                                                control: (baseStyles) => ({
-                                                    ...baseStyles,
-                                                    borderRadius: '0.75rem',
-                                                    padding: '0.35rem',
-                                                    borderColor: '#e5e7eb',
-                                                    boxShadow: 'none',
-                                                    '&:hover': { borderColor: '#22c55e' }
-                                                }),
-                                                menu: (base) => ({ ...base, zIndex: 100 })
-                                            }}
-                                            isClearable
-                                            isSearchable={true}
-                                        />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">SEO Titles (Comma Separated)</label>
-                                        <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none transition-all placeholder-gray-400" placeholder="e.g. healthy, nuts, organic dry fruits" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Rich Description</label>
-                                        <textarea rows="3" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-500/10 focus:border-green-500 outline-none transition-all placeholder-gray-400 resize-none" placeholder="Provide a compelling product description..."></textarea>
-                                    </div>
+                        <form onSubmit={handleUpdate} className="overflow-y-auto p-8 space-y-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="lg:col-span-2">
+                                    <label className={labelStyle}>Product Name</label>
+                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={inputStyle} />
                                 </div>
-                            </section>
-
-
-                            {/* Pricing & Variations Array Engine */}
-                            <section>
-                                <div className="flex justify-between items-end mb-4">
-                                    <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                        <span className="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
-                                        Variations & Pricing Engine <span className="text-red-500 text-sm">*</span>
-                                    </h4>
-                                    <button
-                                        type="button"
-                                        onClick={addTypeRow}
-                                        className="text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors border border-blue-200"
+                                <div>
+                                    <label className={labelStyle}>Status</label>
+                                    <select value={formData.active} onChange={(e) => setFormData({ ...formData, active: Number(e.target.value) })} className={inputStyle}>
+                                        <option value={1}>Active</option>
+                                        <option value={0}>Inactive</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={labelStyle}>Category</label>
+                                    <Select options={categories} value={formData.categoryTypeId} onChange={(val) => setFormData({ ...formData, categoryTypeId: val })} className="text-sm" />
+                                </div>
+                                <div>
+                                    <label className={labelStyle}>Brand</label>
+                                    <Select options={brands} value={formData.brandId} onChange={(val) => setFormData({ ...formData, brandId: val })} className="text-sm" />
+                                </div>
+                                <div>
+                                    <label className={labelStyle}>Exp. Time</label>
+                                    <input type="text" value={formData.expectedTime} onChange={(e) => setFormData({ ...formData, expectedTime: e.target.value })} className={inputStyle} />
+                                </div>
+                                <div>
+                                    <label className={labelStyle}>Return Policy</label>
+                                    <select
+                                        value={formData.returnPolicy}
+                                        onChange={(e) => setFormData({ ...formData, returnPolicy: e.target.value })}
+                                        className={inputStyle}
                                     >
-                                        <FiPlus className="w-4 h-4" /> Add Variation Size
-                                    </button>
+                                        <option value="no return">No Return</option>
+                                        <option value="7 days return">7 Days Return</option>
+                                        <option value="7 day replacement">7 Day Replacement</option>
+                                    </select>
                                 </div>
 
-                                <div className="space-y-4">
-                                    {formData.types.map((type, index) => (
-                                        <div key={index} className="bg-white border-2 border-green-50 p-5 rounded-2xl relative shadow-sm group hover:border-green-200 transition-colors">
-                                            <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-green-500 text-white font-bold flex items-center justify-center text-sm shadow-md border-2 border-white">
-                                                V{index + 1}
+                                <div className="lg:col-span-3">
+                                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                        Dynamic Charges List
+                                        <button type="button" onClick={addChargeRow} className="ml-auto text-green-600 hover:text-green-700 text-[10px] font-black underline decoration-2 underline-offset-4">+ Add Charge</button>
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {formData.charges.map((charge, idx) => (
+                                            <div key={idx} className="flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl transition-all hover:bg-gray-100/80 group">
+                                                <div className="flex-1 min-w-[150px]">
+                                                    <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 ml-1">Charge Name</label>
+                                                    <select
+                                                        value={charge.name}
+                                                        onChange={(e) => handleChargeChange(idx, 'name', e.target.value)}
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:border-green-500 outline-none shadow-sm cursor-pointer"
+                                                    >
+                                                        <option value="">Select Charge...</option>
+                                                        {chargeOptions
+                                                            .filter(opt => opt === charge.name || !formData.charges.some(c => c.name === opt))
+                                                            .map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="w-24">
+                                                    <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 text-center">Amount</label>
+                                                    <input
+                                                        type="number"
+                                                        value={charge.amount}
+                                                        onChange={(e) => handleChargeChange(idx, 'amount', e.target.value)}
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 focus:border-green-500 outline-none shadow-sm text-center"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                                <div className="w-32">
+                                                    <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 text-center">Type</label>
+                                                    <select
+                                                        value={charge.type}
+                                                        onChange={(e) => handleChargeChange(idx, 'type', e.target.value)}
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest focus:border-green-500 outline-none cursor-pointer shadow-sm"
+                                                    >
+                                                        <option value="fixed">Fixed (₹)</option>
+                                                        <option value="percentage">Percent (%)</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-end pt-5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeChargeRow(idx)}
+                                                        className="p-2 text-gray-300 hover:text-red-500 bg-white border border-gray-200 rounded-lg transition-colors shadow-sm active:scale-95"
+                                                    >
+                                                        <FiTrash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeTypeRow(index)}
-                                                className="absolute top-4 right-4 text-red-400 hover:bg-red-50 hover:text-red-600 p-2 rounded-lg transition-colors object-contain"
-                                                title="Remove Variation"
-                                            >
-                                                <FiTrash2 className="w-5 h-5" />
-                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2 pr-12">
+                                <div className="lg:col-span-3">
+                                    <label className={labelStyle}>Search Keywords (Comma Sep.)</label>
+                                    <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className={inputStyle} placeholder="tag1, tag2..." />
+                                </div>
+
+                                <div className="lg:col-span-3">
+                                    <label className={labelStyle}>Description</label>
+                                    <textarea rows="3" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className={`${inputStyle} h-24 resize-none`} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Variations</h4>
+                                    <button type="button" onClick={addTypeRow} className="text-green-600 text-[10px] font-black uppercase hover:underline">+ New Variant</button>
+                                </div>
+                                <div className="space-y-8 mt-4">
+                                    {formData.types.map((type, index) => (
+                                        <div key={index} className="bg-gray-50/50 p-6 rounded-xl border border-gray-200 space-y-6 relative transition-all hover:border-green-200 group">
+                                            {/* Variant Header */}
+                                            <div className="flex items-center justify-between pb-4 border-b border-gray-200/50">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-[10px] font-black underline decoration-2 underline-offset-2">#{index + 1}</span>
+                                                    <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Variation Instance</h4>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTypeRow(index)}
+                                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Remove Variation"
+                                                >
+                                                    <FiTrash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quantity/Weight</label>
-                                                    <input type="number" step="any" min="0" required value={type.qty} onChange={(e) => handleTypeChange(index, 'qty', e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-sm font-semibold" />
+                                                    <label className={labelStyle}>Qty</label>
+                                                    <input type="number" step="any" value={type.qty} onChange={(e) => handleTypeChange(index, 'qty', e.target.value)} className={inputStyle} placeholder="Qty" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sale Price (₹)</label>
-                                                    <input type="number" step="any" min="0" required value={type.price} onChange={(e) => handleTypeChange(index, 'price', e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-green-200 text-green-700 bg-green-50/50 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-sm font-bold placeholder-green-300" />
+                                                    <label className={labelStyle}>Unit</label>
+                                                    <select value={type.unitId} onChange={(e) => handleTypeChange(index, 'unitId', e.target.value)} className={inputStyle}>
+                                                        <option value="">Unit...</option>
+                                                        {units.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                                                    </select>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">MRP / Retail (₹)</label>
-                                                    <input type="number" step="any" min="0" required value={type.mrp} onChange={(e) => handleTypeChange(index, 'mrp', e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-sm font-semibold text-gray-500 line-through" />
+                                                    <label className={labelStyle}>Price (₹)</label>
+                                                    <input type="number" step="any" value={type.price} onChange={(e) => handleTypeChange(index, 'price', e.target.value)} className={`${inputStyle} border-green-200 text-green-700 font-bold`} placeholder="Price" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Max Order Lmt</label>
-                                                    <input type="number" step="1" min="1" required value={type.maxOrder} onChange={(e) => handleTypeChange(index, 'maxOrder', e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-sm font-semibold" />
+                                                    <label className={labelStyle}>MRP (₹)</label>
+                                                    <input type="number" step="any" value={type.mrp} onChange={(e) => handleTypeChange(index, 'mrp', e.target.value)} className={inputStyle} placeholder="MRP" />
                                                 </div>
-                                                <div className="md:col-span-4 mt-2">
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Variation Description (Optional)</label>
-                                                    <input type="text" value={type.description} onChange={(e) => handleTypeChange(index, 'description', e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-sm" placeholder="e.g. Specifically packaged in glass jars for zero plastic waste." />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                <div>
+                                                    <label className={labelStyle}>Short Description</label>
+                                                    <input type="text" value={type.description} onChange={(e) => handleTypeChange(index, 'description', e.target.value)} className={inputStyle} placeholder="One line description..." />
+                                                </div>
+                                                <div className="flex items-end gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleTypeChange(index, 'veg', !type.veg)}
+                                                        className={`flex-1 h-10 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all ${type.veg ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}
+                                                    >
+                                                        {type.veg ? 'Veg' : 'Non-Veg'}
+                                                    </button>
+                                                    <div className="w-24">
+                                                        <label className="block text-[8px] font-black text-gray-400 uppercase mb-1 tracking-widest text-center">Max Lmt</label>
+                                                        <input type="number" value={type.maxOrder} onChange={(e) => handleTypeChange(index, 'maxOrder', e.target.value)} className="w-full h-10 px-2 bg-white border border-gray-200 rounded-lg text-center text-xs font-bold focus:border-green-400 outline-none" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className={labelStyle}>Detailed Information (Rich Text)</label>
+                                                <div className="bg-white rounded-lg border border-gray-300 overflow-hidden variation-rich-editor shadow-sm">
+                                                    <ReactQuill
+                                                        theme="snow"
+                                                        value={type.info || ''}
+                                                        onChange={(content) => handleTypeChange(index, 'info', content)}
+                                                        className="min-h-[150px]"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            </section>
+                            </div>
 
-                            {/* Digital Media */}
-                            <section>
-                                <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <span className="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
-                                    Digital Assets
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                                    {/* Thumbnail Selection */}
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-3">Primary Thumbnail</label>
-                                        <div className="flex items-center gap-5">
-                                            {thumbnailPreview ? (
-                                                <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-gray-200 shrink-0 shadow-sm bg-white p-1">
-                                                    <img src={thumbnailPreview} alt="Preview" className="w-full h-full object-cover rounded-xl" />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setThumbnailPreview(null);
-                                                            setThumbnailFile(null);
-                                                        }}
-                                                        className="absolute top-2 right-2 bg-white/90 text-red-500 rounded-full p-1.5 shadow-sm hover:bg-red-50 hover:text-red-600 transition-colors"
-                                                    >
-                                                        <FiX className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="w-28 h-28 rounded-2xl bg-white border-2 border-dashed border-gray-300 flex flex-col items-center justify-center shrink-0 text-gray-400">
-                                                    <FiImage className="w-8 h-8 mb-1" />
-                                                    <span className="text-[10px] uppercase font-bold tracking-wider">Cover</span>
-                                                </div>
-                                            )}
-                                            <div className="flex-1">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleThumbnailChange}
-                                                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 transition-colors cursor-pointer"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-2 font-medium">Auto-converted to 3-Size WebP</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Gallery Upload */}
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-3">Linked Media Gallery (Max 10)</label>
-                                        <div className="w-full">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                multiple
-                                                onChange={handleImagesChange}
-                                                className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 transition-colors cursor-pointer"
-                                            />
-                                            {imageFiles.length > 0 && (
-                                                <p className="text-sm font-bold text-blue-600 mt-3 flex items-center gap-2">
-                                                    <FiCheck /> {imageFiles.length} files firmly staged for global upload
-                                                </p>
-                                            )}
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <label className={labelStyle}>Change Thumbnail</label>
+                                    <div className="relative aspect-video rounded-lg border-2 border-dashed border-gray-200 overflow-hidden flex items-center justify-center group bg-gray-50">
+                                        {thumbnailPreview ? <img src={thumbnailPreview} className="w-full h-full object-contain p-2" /> : <FiImage className="text-gray-200 w-10 h-10" />}
+                                        <input type="file" onChange={handleThumbnailChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                            <span className="text-white text-[10px] font-black uppercase px-3 py-1 bg-black/50 rounded-full">Replace Image</span>
                                         </div>
                                     </div>
                                 </div>
-                            </section>
+                                <div>
+                                    <label className={labelStyle}>Append Assets</label>
+                                    <div className="relative aspect-video rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-4 hover:bg-gray-50 transition-colors cursor-pointer group">
+                                        <FiPlus className="text-gray-300 w-8 h-8 mb-2 group-hover:text-green-500 transition-colors" />
+                                        <span className="text-[10px] font-black uppercase text-gray-400">Add Gallery Images</span>
+                                        <input type="file" multiple onChange={handleImagesChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                        {imageFiles.length > 0 && <span className="mt-2 text-green-600 font-bold text-[10px]">{imageFiles.length} new selected</span>}
+                                    </div>
+                                </div>
+                            </div>
 
-                            <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4 -mx-6 md:-mx-8 !mt-12 flex gap-3 justify-end rounded-b-2xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-20">
-                                <button
-                                    type="button"
-                                    onClick={closeModal}
-                                    className="px-6 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md shadow-green-600/20 disabled:opacity-70 flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
-                                >
-                                    {isSubmitting && <div className="w-5 h-5 border-2 border-green-200 border-t-white rounded-full animate-spin"></div>}
-                                    {editingProduct ? 'Update Master Record' : 'Publish Product Setup'}
+                            <div className="flex justify-end gap-3 pt-6 border-t font-semibold">
+                                <button type="button" onClick={closeEditModal} className="px-5 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">Cancel</button>
+                                <button type="submit" disabled={isSubmitting} className="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm shadow-md transition-all flex items-center gap-2">
+                                    {isSubmitting && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                    Save Changes
                                 </button>
                             </div>
                         </form>
@@ -540,100 +635,147 @@ const Products = () => {
                 </div>
             )}
 
-            {/* Product Details Modal */}
+            {/* View Details Modal */}
             {isDetailsModalOpen && viewingProduct && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeDetailsModal} />
-
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative z-10 animate-in zoom-in-95 duration-200 flex flex-col">
-                        <div className="sticky top-0 bg-white/80 backdrop-blur-md z-20 flex justify-between items-center p-6 border-b border-gray-100 shadow-sm">
-                            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-                                    <FiEye className="w-5 h-5" />
-                                </span>
-                                Product Details Overview
-                            </h3>
-                            <button onClick={closeDetailsModal} className="text-gray-400 hover:text-gray-600 transition-colors p-2 bg-gray-50 rounded-full hover:bg-gray-100">
-                                <FiX className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 md:p-8 space-y-8">
-                            {/* Top Info Header */}
-                            <div className="flex flex-col md:flex-row gap-6 items-start">
-                                {viewingProduct.thumbnail?.path?.medium ? (
-                                    <img src={`${import.meta.env.VITE_SERVER_URL}${viewingProduct.thumbnail.path.medium}`} alt={viewingProduct.name} className="w-32 h-32 rounded-2xl object-cover border border-gray-200 shadow-sm shrink-0" />
-                                ) : (
-                                    <div className="w-32 h-32 rounded-2xl bg-gray-100 border border-gray-200 flex flex-col items-center justify-center text-gray-400 shrink-0">
-                                        <FiImage className="w-8 h-8 mb-2" />
-                                        <span className="text-xs font-bold uppercase">No Thumb</span>
-                                    </div>
-                                )}
-
-                                <div className="flex-1">
-                                    <h2 className="text-3xl font-bold text-gray-800 tracking-tight mb-2">{viewingProduct.name}</h2>
-                                    <p className="text-gray-600 mb-3">{viewingProduct.description || 'No description provided.'}</p>
-
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {viewingProduct.title?.map((tag, idx) => (
-                                            <span key={idx} className="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-xs font-bold tracking-wide">#{tag}</span>
-                                        ))}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Base Unit</p>
-                                            <p className="font-semibold text-gray-800">{viewingProduct.unit || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Status</p>
-                                            <p className="font-semibold text-green-600">{viewingProduct.active ? 'Active' : 'Inactive'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Expected Time</p>
-                                            <p className="font-semibold text-gray-800">{viewingProduct.expectedTime || 'N/A'}</p>
-                                        </div>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col p-8 md:p-12 animate-in zoom-in-95">
+                        <div className="flex justify-between items-start mb-10">
+                            <div className="flex items-center gap-6">
+                                <div className="w-24 h-24 rounded-xl border border-gray-100 shadow-sm overflow-hidden bg-white p-1">
+                                    {viewingProduct.thumbnail?.path?.medium ? (
+                                        <img src={`${import.meta.env.VITE_SERVER_URL}${viewingProduct.thumbnail.path.medium}`} className="w-full h-full object-contain" />
+                                    ) : <FiImage className="w-full h-full p-4 text-gray-200" />}
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900 leading-tight">{viewingProduct.name}</h3>
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{viewingProduct.brandId?.name}</span>
+                                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                        <span className="text-xs font-bold text-green-500 uppercase tracking-widest">{viewingProduct.categoryTypeId?.name}</span>
                                     </div>
                                 </div>
                             </div>
+                            <button onClick={closeDetailsModal} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"><FiX className="w-5 h-5" /></button>
+                        </div>
 
-                            {/* Variations Grid View */}
-                            <div>
-                                <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    Variations & Attributes ({viewingProduct.types?.length || 0})
-                                </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+                            <div className="lg:col-span-1 space-y-8">
+                                <div>
+                                    <h4 className="text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest">Description</h4>
+                                    <p className="text-sm text-gray-600 leading-relaxed">{viewingProduct.description || 'No detailed description available for this item.'}</p>
+                                </div>
                                 <div className="space-y-4">
-                                    {viewingProduct.types?.map((type, idx) => (
-                                        <div key={idx} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                                            <div className="bg-gray-50/80 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                                                <span className="font-bold text-gray-700 flex items-center gap-2">
-                                                    <span className="bg-green-100 text-green-700 px-2.5 py-0.5 rounded text-xs">V{idx + 1}</span>
-                                                    {type.qty} {viewingProduct.unit}
-                                                </span>
-                                                <span className="text-xs font-bold text-gray-400">Max Order: {type.maxOrder}</span>
-                                            </div>
-                                            <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                <div>
-                                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Price</p>
-                                                    <p className="text-lg font-bold text-green-600">₹{type.price}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">MRP</p>
-                                                    <p className="text-lg font-bold text-gray-500 line-through">₹{type.mrp}</p>
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Details</p>
-                                                    <p className="text-sm text-gray-700">{type.description || 'No variant details'}</p>
-                                                </div>
-                                            </div>
+                                    <div className="flex justify-between border-b border-gray-50 pb-2">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Expected Time</span>
+                                        <span className="text-sm font-bold text-gray-700">{viewingProduct.expectedTime || 'Standard'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-gray-50 pb-2">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Return Policy</span>
+                                        <span className="text-sm font-bold text-gray-700 capitalize">{viewingProduct.returnPolicy || 'no return'}</span>
+                                    </div>
+                                    {viewingProduct.charges?.map((charge, idx) => (
+                                        <div key={idx} className="flex justify-between border-b border-gray-50 pb-2">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{charge.name}</span>
+                                            <span className="text-sm font-bold text-gray-700">
+                                                {charge.type === 'percentage' ? `${charge.amount}%` : `₹${charge.amount}`}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+
+                            <div className="lg:col-span-2">
+                                <h4 className="text-[10px] font-black uppercase text-gray-400 mb-6 tracking-widest">Inventory Matrix</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {viewingProduct.types?.map((type, i) => (
+                                        <div key={i} className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 transition-all hover:border-green-200 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-2 h-2 rounded-full ${type.veg ? 'bg-green-500' : 'bg-red-500'} shadow-sm shadow-current/20`}></div>
+                                                    <span className="text-sm font-bold text-gray-800">{type.qty} {type.unitId?.code || type.unitId?.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-sm font-black text-green-600">₹{type.price}</span>
+                                                    {type.mrp > type.price && (
+                                                        <span className="block text-[10px] text-gray-300 line-through">₹{type.mrp}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {type.description && (
+                                                <p className="text-[10px] text-gray-500 font-medium italic border-l-2 border-green-200 pl-2">{type.description}</p>
+                                            )}
+                                            {type.info && (
+                                                <div className="text-[11px] text-gray-600 ql-editor-view mt-2" dangerouslySetInnerHTML={{ __html: type.info }} />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {viewingProduct.images?.length > 0 && (
+                                    <div className="mt-10">
+                                        <h4 className="text-[10px] font-black uppercase text-gray-400 mb-5 tracking-widest">Visual Assets</h4>
+                                        <div className="flex gap-6 overflow-x-auto pb-6 pt-2 px-2 custom-scrollbar">
+                                            {viewingProduct.images.map((img, i) => (
+                                                <div key={i} className="relative group h-28 w-28 flex-shrink-0">
+                                                    <img
+                                                        src={`${import.meta.env.VITE_SERVER_URL}${img.path?.medium || img.path?.original}`}
+                                                        className="h-full w-full rounded-xl object-contain border border-gray-100 bg-white p-1"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleDeleteGalleryImage(viewingProduct._id, img._id)}
+                                                        className="absolute -top-3 -right-3 w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all border-2 border-white hover:bg-red-700 active:scale-95 z-20"
+                                                        title="Delete Image"
+                                                    >
+                                                        <FiX className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* Delete Confirmation (Clean Standard) */}
+            {isDeleteModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsDeleteModalOpen(false)} />
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative z-10 p-8 text-center animate-in zoom-in-95">
+                        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full mb-4 flex items-center justify-center mx-auto"><FiTrash2 className="w-6 h-6" /></div>
+                        <h3 className="text-lg font-bold text-gray-900">Remove Product?</h3>
+                        <p className="text-sm text-gray-500 mt-2">You are about to delete <span className="font-bold text-gray-800">"{deletingProduct?.name}"</span>. This action cannot be reversed.</p>
+                        <div className="flex gap-3 mt-8">
+                            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2 bg-gray-100 text-gray-600 font-bold rounded-lg text-sm hover:bg-gray-200 transition-colors">Cancel</button>
+                            <button onClick={handleDelete} className="flex-1 py-2 bg-red-600 text-white font-bold rounded-lg text-sm hover:bg-red-700 transition-all shadow-md active:scale-95">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <style>{`
+                .variation-rich-editor .ql-container {
+                    border: none !important;
+                    min-height: 100px;
+                }
+                .variation-rich-editor .ql-editor {
+                    font-size: 14px;
+                    padding: 12px;
+                }
+                .variation-rich-editor .ql-toolbar {
+                    border: none !important;
+                    border-bottom: 1px solid #e5e7eb !important;
+                    background: #f9fafb;
+                }
+                .ql-editor-view {
+                    padding: 0 !important;
+                }
+                .ql-editor-view p {
+                    margin-bottom: 0.5rem;
+                }
+            `}</style>
         </div>
     );
 };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { validateProduct } = require('../middleware/validator/productValidator');
-const { createProduct, getProducts, getProductById, updateProduct } = require('../controllers/productController');
+const { createProduct, getProducts, getProductById, updateProduct, deleteProduct, deleteProductImage } = require('../controllers/productController');
 
 // Define memory storage for multer because we process them dynamically using Sharp
 const storage = multer.memoryStorage();
@@ -31,5 +31,15 @@ router.get('/:id', getProductById);
 // @desc    Update a specific Product
 // @access  Private / Auth
 router.put('/:id', productUploads, validateProduct, updateProduct);
+
+// @route   DELETE /api/product/:id
+// @desc    Delete a specific Product
+// @access  Private / Auth
+router.delete('/:id', deleteProduct);
+
+// @route   DELETE /api/product/:productId/images/:imageId
+// @desc    Delete a specific Product Gallery Image
+// @access  Private / Auth
+router.delete('/:productId/images/:imageId', deleteProductImage);
 
 module.exports = router;

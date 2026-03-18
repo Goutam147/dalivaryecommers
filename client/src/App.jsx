@@ -8,7 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AppProvider } from './context/AppContext';
 import UserLayout from './layouts/UserLayout';
 import AdminLayout from './layouts/AdminLayout';
-import Welcome from './pages/userPages/Welcome';
+import Home from './pages/userPages/Home';
 import Login from './pages/userPages/Login';
 import Logout from './pages/userPages/Logout';
 import Dashboard from './pages/adminPages/Dashboard';
@@ -21,7 +21,10 @@ import SubCategories from './pages/adminPages/SubCategories';
 import Brands from './pages/adminPages/Brands';
 import Vendors from './pages/adminPages/Vendors';
 import Products from './pages/adminPages/Products';
+import AddProduct from './pages/adminPages/AddProduct';
 import Units from './pages/adminPages/Units';
+import TimeManagement from './pages/adminPages/TimeManagement';
+import ProductDetails from './pages/userPages/ProductDetails';
 
 const router = createBrowserRouter([
   {
@@ -40,7 +43,8 @@ const router = createBrowserRouter([
     path: '/',
     element: <UserLayout />,
     children: [
-      { index: true, element: <Welcome /> },
+      { index: true, element: <Home /> },
+      { path: 'products/:id', element: <ProductDetails /> },
     ]
   },
   {
@@ -59,9 +63,11 @@ const router = createBrowserRouter([
       { path: 'category-types', element: <CategoryTypes /> },
       { path: 'sub-categories', element: <SubCategories /> },
       { path: 'products', element: <Products /> },
+      { path: 'products/add', element: <AddProduct /> },
       { path: 'brands', element: <Brands /> },
       { path: 'vendors', element: <Vendors /> },
       { path: 'units', element: <Units /> },
+      { path: 'settings/time-slots', element: <TimeManagement /> },
     ],
   },
   // Catch all unmatched routes and redirect to index naturally
