@@ -5,12 +5,7 @@ const ShopMaster = require('../model/ShopMaster');
 // @access  Private / Auth
 const upsertShop = async (req, res) => {
     try {
-        const { shopName, email, phone, address, ownerName, gstNo, prefix, wpApiKey } = req.body;
-
-        // Since address may be stringified JSON from FormData, it should be parsed in validator middleware
-        const updateData = {
-            shopName, email, phone, address, ownerName, gstNo, prefix, wpApiKey
-        };
+        const updateData = req.body;
 
         // Check if there is already a ShopMaster record
         let shop = await ShopMaster.findOne();

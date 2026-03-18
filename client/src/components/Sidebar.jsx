@@ -54,10 +54,9 @@ const Sidebar = () => {
             name: 'Settings',
             icon: <MdSettings className="w-5 h-5 shrink-0" />,
             children: [
+                { name: 'Shop Master', path: '/admin/settings' },
                 { name: 'Set Unit', path: '/admin/units' },
                 { name: 'Time Slot', path: '/admin/settings/time-slots' },
-                { name: 'General', path: '/admin/settings/general' },
-                { name: 'Advanced', path: '/admin/settings/advanced' },
             ]
         },
         { name: 'Profile', path: '/admin/profile', icon: <FaUserCircle className="w-5 h-5 shrink-0" /> },

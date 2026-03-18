@@ -24,6 +24,7 @@ import Products from './pages/adminPages/Products';
 import AddProduct from './pages/adminPages/AddProduct';
 import Units from './pages/adminPages/Units';
 import TimeManagement from './pages/adminPages/TimeManagement';
+import ShopSettings from './pages/adminPages/ShopSettings';
 import ProductDetails from './pages/userPages/ProductDetails';
 
 const router = createBrowserRouter([
@@ -67,6 +68,7 @@ const router = createBrowserRouter([
       { path: 'brands', element: <Brands /> },
       { path: 'vendors', element: <Vendors /> },
       { path: 'units', element: <Units /> },
+      { path: 'settings', element: <ShopSettings /> },
       { path: 'settings/time-slots', element: <TimeManagement /> },
     ],
   },
