@@ -13,6 +13,7 @@ const brandRoutes = require('./routes/brandRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
 const productRoutes = require('./routes/productRoutes');
 const userRoutes = require('./routes/userRoutes');
+const subCategoryRoutes = require('./routes/subCategoryRoutes');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/unit', require('./routes/unitRoutes'));
 app.use('/api/brand', brandRoutes);
 app.use('/api/expense', expenseRoutes);
 app.use('/api/product', productRoutes);
+app.use('/api/sub-category', subCategoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/time', require('./routes/timeRoutes'));
 

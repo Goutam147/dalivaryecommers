@@ -1,23 +1,36 @@
 const mongoose = require('mongoose');
 
 const subCategorySchema = new mongoose.Schema({
-    mainCategory: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'CategoryType',
-        required: true
-    },
-    mainCategoryName: {
+    subCategoryName: {
         type: String,
         trim: true
     },
-    listCategory: [{
+    subCategoryImage: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Category'
-    }],
-    listcategoryName: {
-        type: [String],
-        default: []
+        ref: 'ImagePath'
     },
+    mainCategory: {
+        name: {
+            type: String,
+            trim: true
+        },
+        mainCategoryId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category'
+        }
+    },
+    categoryType: [
+        {
+            name: {
+                type: String,
+                trim: true
+            },
+            categoryId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'CategoryType'
+            }
+        }
+    ],
     active: {
         type: Boolean,
         default: true
