@@ -17,7 +17,8 @@ const productTypeSchema = z.object({
     maxOrder: z.number({ coerce: true }).optional().default(1),
     info: z.any().optional(),
     verified: z.boolean({ coerce: true }).optional().default(false),
-    veg: z.boolean({ coerce: true }).optional().default(false)
+    veg: z.boolean({ coerce: true }).optional().default(false),
+    images: z.array(z.string()).optional().default([]) // Array of ImagePath IDs
 });
 
 // Main Product schema
@@ -38,7 +39,8 @@ const productValidationSchema = z.object({
     }).optional(),
     charges: z.array(chargeSchema).optional().default([]),
     expectedTime: z.string().optional(),
-    active: z.number({ coerce: true }).optional().default(1)
+    active: z.number({ coerce: true }).optional().default(1),
+    setImg: z.enum(['combine', 'split']).optional().default('combine')
 });
 
 const validateProduct = (req, res, next) => {

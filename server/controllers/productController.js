@@ -16,15 +16,33 @@ const createProduct = async (req, res) => {
             productData.thumbnail = imageId;
         }
 
-        // Process generalized Image gallery natively mapping to root `images` instead of nested structures
-        const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]') : [];
-        if (galleryFiles.length > 0) {
-            const uploadedImageIds = [];
-            for (const file of galleryFiles) {
-                const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
-                uploadedImageIds.push(imageId);
+        // Process Image gallery based on setImg strategy
+        if (productData.setImg === 'split') {
+            // Split mode: Process images for each variant
+            if (productData.types && Array.isArray(productData.types)) {
+                for (let i = 0; i < productData.types.length; i++) {
+                    const variantFiles = req.files ? req.files.filter(f => f.fieldname === `images_${i}`) : [];
+                    if (variantFiles.length > 0) {
+                        const uploadedImageIds = [];
+                        for (const file of variantFiles) {
+                            const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
+                            uploadedImageIds.push(imageId);
+                        }
+                        productData.types[i].images = uploadedImageIds;
+                    }
+                }
             }
-            productData.images = uploadedImageIds;
+        } else {
+            // Combine mode (default): Process generalized Image gallery
+            const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]' || f.fieldname === 'images_all') : [];
+            if (galleryFiles.length > 0) {
+                const uploadedImageIds = [];
+                for (const file of galleryFiles) {
+                    const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
+                    uploadedImageIds.push(imageId);
+                }
+                productData.images = uploadedImageIds;
+            }
         }
 
         const product = await Product.create(productData);
@@ -95,22 +113,51 @@ const updateProduct = async (req, res) => {
             productData.thumbnail = imageId;
         }
 
-        // Process updated generalized gallery logic appending directly to root `images`
-        const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]') : [];
-        if (galleryFiles.length > 0) {
-            const uploadedImageIds = [];
-            for (const file of galleryFiles) {
-                const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
-                uploadedImageIds.push(imageId);
+        const oldProduct = await Product.findById(req.params.id);
+        if (!oldProduct) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        // Migration Logic: If switching from combine to split, move global images to unlinkImg
+        if (oldProduct.setImg === 'combine' && productData.setImg === 'split') {
+            const existingImages = oldProduct.images || [];
+            if (existingImages.length > 0) {
+                productData.unlinkImg = [...(oldProduct.unlinkImg || []), ...existingImages];
+                productData.images = [];
             }
-            // If images were already present in productData as IDs (from existing list), merge them
-            productData.images = [...(productData.images || []), ...uploadedImageIds];
+        }
+
+        // Process images based on strategy
+        if (productData.setImg === 'split') {
+            if (productData.types && Array.isArray(productData.types)) {
+                for (let i = 0; i < productData.types.length; i++) {
+                    const variantFiles = req.files ? req.files.filter(f => f.fieldname === `images_${i}`) : [];
+                    const uploadedImageIds = [];
+                    for (const file of variantFiles) {
+                        const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
+                        uploadedImageIds.push(imageId);
+                    }
+                    // Merge with existing variant images if they were sent as IDs
+                    productData.types[i].images = [...(productData.types[i].images || []), ...uploadedImageIds];
+                }
+            }
+        } else {
+            // Combine mode
+            const galleryFiles = req.files ? req.files.filter(f => f.fieldname === 'images' || f.fieldname === 'images[]' || f.fieldname === 'images_all') : [];
+            if (galleryFiles.length > 0) {
+                const uploadedImageIds = [];
+                for (const file of galleryFiles) {
+                    const imageId = await processAndSaveImage(file.buffer, file.originalname, 'products');
+                    uploadedImageIds.push(imageId);
+                }
+                productData.images = [...(productData.images || []), ...uploadedImageIds];
+            }
         }
 
         const product = await Product.findByIdAndUpdate(req.params.id, productData, {
             new: true,
             runValidators: true
-        }).populate('thumbnail').populate('images').populate('brandId').populate('categoryTypeId').populate('types.unitId');
+        }).populate('thumbnail').populate('images').populate('brandId').populate('categoryTypeId').populate('types.unitId').populate('types.images');
 
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found" });

@@ -20,7 +20,7 @@ const AdminLayout = () => {
     }, [location.pathname]);
 
     return (
-        <div className="flex flex-row h-screen overflow-hidden bg-gray-50/50 font-sans text-gray-900 selection:bg-green-200 selection:text-green-900">
+        <div className="flex flex-row h-screen overflow-hidden bg-[#f8f9fa] font-sans text-gray-900 selection:bg-green-200 selection:text-green-900">
 
             {/* Top Loading Progress Bar injected directly into routing logic */}
             <LoadingBar color="#10b981" ref={loadingBarRef} shadow={true} height={3} className="z-[9999]" />
@@ -30,7 +30,7 @@ const AdminLayout = () => {
             <div className="flex flex-col flex-1 w-full relative h-screen">
                 <TopBar />
 
-                <main className="flex-1 overflow-y-auto p-2 lg:p-4 relative">
+                <main className="flex-1 overflow-y-auto p-3 lg:p-4 relative">
                     <Outlet />
                 </main>
             </div>

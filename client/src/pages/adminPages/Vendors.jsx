@@ -2,10 +2,16 @@ import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
 import { FiEdit2, FiX, FiCheck, FiMapPin, FiPhone, FiMail } from 'react-icons/fi';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { InputText } from 'primereact/inputtext';
+import { Tag } from 'primereact/tag';
+import { Button } from 'primereact/button';
 
 const Vendors = () => {
     const [vendors, setVendors] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [globalFilter, setGlobalFilter] = useState('');
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -117,82 +123,105 @@ const Vendors = () => {
         }
     };
 
-    return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[600px] flex flex-col relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 lg:p-8 border-b border-gray-100 bg-white/50">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Vendor Management</h2>
-                    <p className="text-gray-500 text-sm mt-1">Manage external suppliers, owners, and contact details.</p>
-                </div>
-                <button
-                    onClick={() => openModal()}
-                    className="mt-4 sm:mt-0 bg-green-600 hover:bg-green-700 shadow-sm shadow-green-600/20 text-white px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 transform active:scale-95"
-                >
-                    <FiCheck className="w-4 h-4" />
-                    Register Vendor
-                </button>
+    const infoTemplate = (row) => (
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-color7 flex items-center justify-center text-color2 font-bold border border-color1/20 shadow-inner">
+                {row.name.charAt(0).toUpperCase()}
             </div>
+            <div className="flex flex-col">
+                <span className="font-bold text-black text-sm">{row.name}</span>
+                <span className="text-[10px] text-gray-500 font-semibold mt-0.5">{row.owner || 'No Owner Listed'}</span>
+            </div>
+        </div>
+    );
 
-            <div className="flex-1 p-6 lg:p-8 overflow-x-hidden">
-                {loading ? (
-                    <div className="flex justify-center items-center h-48">
-                        <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-                    </div>
-                ) : vendors.length === 0 ? (
-                    <div className="text-center py-20 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                        <p className="text-gray-500 text-lg font-medium">No Vendors Registered yet.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {vendors.map((vendor) => (
-                            <div key={vendor._id} className="bg-white border text-left border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+    const contactTemplate = (row) => (
+        <div className="flex flex-col gap-1">
+            {row.phone && row.phone.length > 0 && (
+                <div className="flex items-center gap-2 text-black">
+                    <FiPhone className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="text-xs font-bold">{row.phone[0]} {row.phone.length > 1 && `(+${row.phone.length - 1})`}</span>
+                </div>
+            )}
+            {row.email && (
+                <div className="flex items-center gap-2 text-black">
+                    <FiMail className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="text-xs font-bold truncate max-w-[150px]">{row.email}</span>
+                </div>
+            )}
+        </div>
+    );
 
-                                {/* Status Badge & Actions */}
-                                <div className="absolute top-6 right-6 flex items-center gap-2">
-                                    <button
-                                        onClick={() => openModal(vendor)}
-                                        className="p-1.5 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                                    >
-                                        <FiEdit2 className="w-4 h-4" />
-                                    </button>
-                                    <div className={`w-3 h-3 rounded-full border-2 ${vendor.active ? 'bg-green-500 border-green-200' : 'bg-red-500 border-red-200'}`} title={vendor.active ? 'Active' : 'Inactive'} />
-                                </div>
+    const statusBodyTemplate = (row) => (
+        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border leading-none inline-block ${row.active
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-red-50 text-red-700 border-red-200'
+            }`}>
+            {row.active ? 'Active' : 'Inactive'}
+        </span>
+    );
 
-                                <div className="flex items-start gap-4 mb-4">
-                                    <div className="w-14 h-14 bg-gradient-to-br from-green-100 to-emerald-50 rounded-2xl flex items-center justify-center text-green-600 font-bold text-xl border border-green-100 shadow-inner">
-                                        {vendor.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-800 leading-tight pr-10">{vendor.name}</h3>
-                                        <p className="text-sm font-medium text-gray-500">{vendor.owner || 'No Owner Listed'}</p>
-                                    </div>
-                                </div>
+    const slTemplate = (data, options) => {
+        return <span className="text-xs font-medium text-gray-600">{options.rowIndex + 1}</span>
+    };
 
-                                <div className="space-y-3 pt-4 border-t border-gray-100 text-sm">
-                                    <div className="flex items-start gap-3 text-gray-600">
-                                        <FiMapPin className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
-                                        <span className="leading-tight">
-                                            {vendor.address}
-                                        </span>
-                                    </div>
-                                    {vendor.phone && vendor.phone.length > 0 && (
-                                        <div className="flex items-center gap-3 text-gray-600">
-                                            <FiPhone className="w-4 h-4 text-gray-400 shrink-0" />
-                                            <span className="truncate">{vendor.phone[0]} {vendor.phone.length > 1 && `(+${vendor.phone.length - 1} more)`}</span>
-                                        </div>
-                                    )}
-                                    {vendor.email && (
-                                        <div className="flex items-center gap-3 text-gray-600">
-                                            <FiMail className="w-4 h-4 text-gray-400 shrink-0" />
-                                            <span className="truncate">{vendor.email}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+    const actionTemplate = (row) => (
+        <div className="flex items-center justify-center gap-2">
+            <button
+                onClick={() => openModal(row)}
+                className="w-7 h-7 rounded bg-green-700 hover:bg-green-800 text-white flex items-center justify-center transition-all shadow-sm active:scale-95"
+                title="Edit Entry"
+            >
+                <FiEdit2 className="w-3.5 h-3.5" />
+            </button>
+        </div>
+    );
+
+    const header = (
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4">
+            <h5 className="m-0 text-xl font-bold text-gray-900 tracking-tight">Vendor Directory</h5>
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined onClick={() => setGlobalFilter('')} className="bg-white text-gray-900 border border-gray-300 px-4 py-2 rounded-md shadow-sm font-semibold hover:bg-gray-50 flex items-center justify-center gap-2 text-xs" />
+                <span className="relative">
+                    <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <InputText type="search" value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Keyword Search" className="pl-10 pr-4 py-2 bg-white border border-gray-300 shadow-sm focus:border-color1 outline-none text-gray-900 font-medium rounded-md w-full text-xs" />
+                </span>
+                <Button label="New Vendor" icon="pi pi-plus" className="bg-color1 border-none py-2 px-6 rounded-md shadow-sm font-bold text-white flex items-center justify-center gap-2 text-xs" onClick={() => openModal()} />
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="animate-in fade-in duration-500">
+            <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+                <DataTable
+                    value={vendors}
+                    paginator
+                    rows={15}
+                    loading={loading}
+                    globalFilter={globalFilter}
+                    header={header}
+                    showGridlines
+                    responsiveLayout="stack"
+                    className="p-datatable-vendors"
+                    emptyMessage={
+                        <div className="py-20 text-center">
+                            <i className="pi pi-box text-6xl text-gray-200 mb-4" />
+                            <p className="text-gray-500 font-bold text-sm">No Vendors Registered yet.</p>
+                        </div>
+                    }
+                    rowsPerPageOptions={[10, 15, 25, 50]}
+                    paginatorClassName="border-t border-gray-50 py-4"
+                    paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} results"
+                >
+                    <Column header="Sl" body={slTemplate} className="w-16 text-center" />
+                    <Column header="Vendor Profile" body={infoTemplate} sortable field="name" />
+                    <Column header="Contact Details" body={contactTemplate} />
+                    <Column header="Address" field="address" style={{ maxWidth: '250px' }} className="truncate font-medium text-xs text-black" />
+                    <Column header="Status" body={statusBodyTemplate} sortable field="active" className="text-center" />
+                    <Column header="Action" body={actionTemplate} className="text-center w-24" />
+                </DataTable>
             </div>
 
             {/* Complex Vendor Modal */}
@@ -216,49 +245,48 @@ const Vendors = () => {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Business Name</label>
-                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.name ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="e.g. Fresh Farms Corp" />
+                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.name ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-gray-900`} placeholder="e.g. Fresh Farms Corp" />
                                     {validationErrors.name && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.name}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Owner / Contact Person</label>
-                                    <input type="text" value={formData.owner} onChange={(e) => setFormData({ ...formData, owner: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.owner ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="John Doe" />
+                                    <input type="text" value={formData.owner} onChange={(e) => setFormData({ ...formData, owner: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.owner ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-gray-900`} placeholder="John Doe" />
                                     {validationErrors.owner && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.owner}</p>}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Numbers</label>
-                                        <input type="text" value={formData.phones} onChange={(e) => setFormData({ ...formData, phones: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.phone ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="e.g. 555-1234, 555-5678" />
+                                        <input type="text" value={formData.phones} onChange={(e) => setFormData({ ...formData, phones: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.phone ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-gray-900`} placeholder="e.g. 555-1234, 555-5678" />
                                         {validationErrors.phone && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.phone}</p>}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">GST Number</label>
-                                        <input type="text" value={formData.gstNo} onChange={(e) => setFormData({ ...formData, gstNo: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.gstNo ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-sm font-mono`} placeholder="22AAAAA0000A1Z5" />
+                                        <input type="text" value={formData.gstNo} onChange={(e) => setFormData({ ...formData, gstNo: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.gstNo ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-sm font-mono text-gray-900`} placeholder="22AAAAA0000A1Z5" />
                                         {validationErrors.gstNo && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.gstNo}</p>}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Linked Email</label>
-                                    <input type="text" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.email ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400`} placeholder="contact@freshfarms.com" />
+                                    <input type="text" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.email ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 text-gray-900`} placeholder="contact@freshfarms.com" />
                                     {validationErrors.email && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.email}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Address</label>
-                                    <textarea rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.address ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-green-500/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 resize-none`} placeholder="123 Farm Lane, Agriculture City, AP 500001" />
+                                    <textarea rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={`w-full px-4 py-2.5 bg-gray-50 border ${validationErrors.address ? 'border-red-500 focus:ring-red-500/10' : 'border-gray-200 focus:ring-color1/10'} rounded-xl focus:ring-4 focus:bg-white outline-none transition-all placeholder-gray-400 resize-none text-gray-900`} placeholder="123 Farm Lane, Agriculture City, AP 500001" />
                                     {validationErrors.address && <p className="text-red-500 text-xs mt-1.5 font-medium">{validationErrors.address}</p>}
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50/50">
-                                <input type="checkbox" id="vendorActive" checked={formData.active} onChange={(e) => setFormData({ ...formData, active: e.target.checked })} className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500" />
+                                <input type="checkbox" id="vendorActive" checked={formData.active} onChange={(e) => setFormData({ ...formData, active: e.target.checked })} className="w-5 h-5 text-color1 bg-white border-gray-300 rounded focus:ring-color1" />
                                 <label htmlFor="vendorActive" className="text-sm font-semibold text-gray-700 cursor-pointer select-none">Vendor is authorized and active</label>
                             </div>
                         </form>
 
-                        {/* Footer Actions */}
                         <div className="p-5 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex justify-end gap-3 shrink-0">
                             <button type="button" onClick={closeModal} className="px-5 py-2.5 text-gray-600 font-medium hover:bg-white rounded-xl border border-transparent hover:border-gray-200 transition-all">Cancel</button>
-                            <button type="submit" form="vendorForm" disabled={isSubmitting} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-sm shadow-green-600/20 disabled:opacity-70 flex items-center gap-2 transition-all">
-                                {isSubmitting && <div className="w-4 h-4 border-2 border-green-200 border-t-white rounded-full animate-spin"></div>}
+                            <button type="submit" form="vendorForm" disabled={isSubmitting} className="px-6 py-2.5 bg-color1 hover:bg-color2 text-white font-bold rounded-xl shadow-sm shadow-color1/20 disabled:opacity-70 flex items-center gap-2 transition-all">
+                                {isSubmitting && <div className="w-4 h-4 border-2 border-color2 border-t-white rounded-full animate-spin"></div>}
                                 {editingVendor ? 'Save Changes' : 'Register Vendor'}
                             </button>
                         </div>

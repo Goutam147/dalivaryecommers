@@ -6,12 +6,17 @@ import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { InputText } from 'primereact/inputtext';
+import { Tag } from 'primereact/tag';
+import { Button } from 'primereact/button';
 
 const Products = () => {
     const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [globalFilter, setGlobalFilter] = useState('');
 
     // Relational Data for Dropdowns (Used in Edit Modal)
     const [categories, setCategories] = useState([]);
@@ -35,6 +40,7 @@ const Products = () => {
         expectedTime: '',
         returnPolicy: '',
         active: 1,
+        setImg: 'combine',
         types: [],
         charges: []
     };
@@ -43,6 +49,11 @@ const Products = () => {
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
     const [imageFiles, setImageFiles] = useState([]);
+    const [imagePreviews, setImagePreviews] = useState([]);
+
+    // Variant-specific images
+    const [variantImageFiles, setVariantImageFiles] = useState([]);
+    const [variantImagePreviews, setVariantImagePreviews] = useState([]);
 
     // Common Charge Names for Dropdown
     const chargeOptions = [
@@ -104,6 +115,7 @@ const Products = () => {
             expectedTime: product.expectedTime || '',
             returnPolicy: product.returnPolicy || 'no return',
             active: product.active ?? 1,
+            setImg: product.setImg || 'combine',
             types: product.types && product.types.length > 0
                 ? product.types.map(t => ({
                     ...t,
@@ -116,7 +128,19 @@ const Products = () => {
                 : [],
             images: product.images ? product.images.map(img => img._id) : []
         });
+
+        // Initialize variant image previews with existing images
+        if (product.types) {
+            const initialFiles = product.types.map(() => []);
+            const initialPreviews = product.types.map(t =>
+                t.images ? t.images.map(img => `${import.meta.env.VITE_SERVER_URL}${img.path?.medium || img.path?.original}`) : []
+            );
+            setVariantImageFiles(initialFiles);
+            setVariantImagePreviews(initialPreviews);
+        }
+
         setThumbnailPreview(product.thumbnail?.path?.medium ? `${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.medium}` : null);
+        setImagePreviews(product.images ? product.images.map(img => `${import.meta.env.VITE_SERVER_URL}${img.path?.medium || img.path?.original}`) : []);
         setThumbnailFile(null);
         setImageFiles([]);
         setIsEditModalOpen(true);
@@ -146,14 +170,64 @@ const Products = () => {
     const addTypeRow = () => {
         setFormData({
             ...formData,
-            types: [...formData.types, { qty: 1, unitId: '', price: 0, mrp: 0, description: '', maxOrder: 1, verified: false, veg: false, info: '' }]
+            types: [...formData.types, { qty: 1, unitId: '', price: 0, mrp: 0, description: '', maxOrder: 1, verified: false, veg: false, info: '', images: [] }]
         });
+        setVariantImageFiles([...variantImageFiles, []]);
+        setVariantImagePreviews([...variantImagePreviews, []]);
     };
 
     const removeTypeRow = (index) => {
         if (formData.types.length <= 1) return toast.warning("Product must have at least one variation type.");
         const newTypes = formData.types.filter((_, i) => i !== index);
         setFormData({ ...formData, types: newTypes });
+        setVariantImageFiles(variantImageFiles.filter((_, i) => i !== index));
+        setVariantImagePreviews(variantImagePreviews.filter((_, i) => i !== index));
+    };
+
+    const handleVariantImagesChange = (index, e) => {
+        const files = Array.from(e.target.files);
+        const newFiles = [...variantImageFiles];
+        newFiles[index] = [...newFiles[index], ...files];
+        setVariantImageFiles(newFiles);
+
+        const previews = files.map(file => URL.createObjectURL(file));
+        const newPreviews = [...variantImagePreviews];
+        newPreviews[index] = [...newPreviews[index], ...previews];
+        setVariantImagePreviews(newPreviews);
+    };
+
+    const removeVariantImage = (variantIndex, imageIndex) => {
+        // If it's an existing image (string URL), we might need to handle deletion in DB or just UI
+        // For now, let's just handle it in UI state. 
+        // Note: If they remove an existing image, it won't be sent back in the images array if we were tracking IDs there.
+        // But for variants, the backend currently replaces images if new ones are uploaded for that index? 
+        // No, backend replaces all images for that index if `images_${index}` is present? 
+        // Let's re-verify backend logic.
+
+        const newFiles = [...variantImageFiles];
+        // Only filter if it was a file (not an existing string path)
+        // Wait, variantImageFiles only stores NEW files. variantImagePreviews stores both existing URLs and new Blob URLs.
+
+        // Actually, let's simplify: if they remove an existing image, we need to remove it from t.images in formData.types
+        const newTypes = [...formData.types];
+        if (newTypes[variantIndex].images && imageIndex < newTypes[variantIndex].images.length) {
+            newTypes[variantIndex].images.splice(imageIndex, 1);
+            setFormData({ ...formData, types: newTypes });
+
+            const newPreviews = [...variantImagePreviews];
+            newPreviews[variantIndex].splice(imageIndex, 1);
+            setVariantImagePreviews(newPreviews);
+        } else {
+            // It's a new file
+            const newFileIndex = imageIndex - (newTypes[variantIndex].images ? newTypes[variantIndex].images.length : 0);
+            const newFilesArr = [...variantImageFiles];
+            newFilesArr[variantIndex] = newFilesArr[variantIndex].filter((_, i) => i !== newFileIndex);
+            setVariantImageFiles(newFilesArr);
+
+            const newPreviews = [...variantImagePreviews];
+            newPreviews[variantIndex].splice(imageIndex, 1);
+            setVariantImagePreviews(newPreviews);
+        }
     };
 
     const handleChargeChange = (index, field, value) => {
@@ -235,10 +309,18 @@ const Products = () => {
                 payloadData.append('thumbnail', thumbnailFile);
             }
 
-            if (imageFiles && imageFiles.length > 0) {
-                imageFiles.forEach(file => {
-                    payloadData.append('images', file);
+            if (formData.setImg === 'split') {
+                variantImageFiles.forEach((files, index) => {
+                    files.forEach(file => {
+                        payloadData.append(`images_${index}`, file);
+                    });
                 });
+            } else {
+                if (imageFiles && imageFiles.length > 0) {
+                    imageFiles.forEach(file => {
+                        payloadData.append('images', file);
+                    });
+                }
             }
 
             await api.put(`/product/${editingProduct._id}`, payloadData, {
@@ -271,137 +353,104 @@ const Products = () => {
         }
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.brandId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const labelStyle = "block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2";
+    const inputStyle = "w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-color1 focus:border-color1 outline-none text-sm transition-all";
+
+    const productTemplate = (row) => (
+        <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                {row.thumbnail?.path?.thumbnail ? (
+                    <img src={`${import.meta.env.VITE_SERVER_URL}${row.thumbnail.path.thumbnail}`} className="w-full h-full object-cover" />
+                ) : <FiImage className="w-full h-full p-3 text-gray-300" />}
+            </div>
+            <div className="flex flex-col">
+                <span className="text-sm font-bold text-gray-800">{row.name}</span>
+                <span className="text-xs text-gray-400 truncate max-w-[250px]">{row.description || 'No description'}</span>
+            </div>
+        </div>
     );
 
-    const labelStyle = "block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2";
-    const inputStyle = "w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-sm transition-all";
+    const categoryTemplate = (row) => (
+        <div className="flex flex-col">
+            <span className="text-sm font-semibold text-gray-700">{row.brandId?.name || 'No Brand'}</span>
+            <span className="text-[10px] font-bold text-color1 bg-color7 px-2 py-0.5 rounded border border-color1/20 w-fit mt-1 uppercase">{row.categoryTypeId?.name || 'Uncategorized'}</span>
+        </div>
+    );
+
+    const variantsTemplate = (row) => (
+        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100 leading-none">
+            {row.types?.length || 0} ITEMS
+        </span>
+    );
+
+    const statusTemplate = (row) => (
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${row.active === 1
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-gray-50 text-gray-500 border-gray-200'
+            }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${row.active === 1 ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            {row.active === 1 ? 'Active' : 'Draft'}
+        </span>
+    );
+
+    const slTemplate = (data, options) => {
+        return <span className="text-xs font-medium text-gray-600">{options.rowIndex + 1}</span>
+    };
+
+    const actionTemplate = (row) => (
+        <div className="flex items-center justify-center gap-1.5">
+            <button onClick={() => openDetailsModal(row)} className="w-7 h-7 rounded bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="View Info"><FiEye className="w-3.5 h-3.5" /></button>
+            <button onClick={() => openEditModal(row)} className="w-7 h-7 rounded bg-green-700 hover:bg-green-800 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Quick Edit"><FiEdit2 className="w-3.5 h-3.5" /></button>
+            <button onClick={() => { setDeletingProduct(row); setIsDeleteModalOpen(true); }} className="w-7 h-7 rounded bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Remove"><FiTrash2 className="w-3.5 h-3.5" /></button>
+        </div>
+    );
+
+    const header = (
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4">
+            <h5 className="m-0 text-xl font-bold text-gray-900 tracking-tight">Product Catalog</h5>
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined onClick={() => setGlobalFilter('')} className="bg-white text-gray-900 border border-gray-300 px-4 py-2 rounded-md shadow-sm font-semibold hover:bg-gray-50 flex items-center justify-center gap-2 text-xs" />
+                <span className="relative">
+                    <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <InputText type="search" value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Keyword Search" className="pl-10 pr-4 py-2 bg-white border border-gray-300 shadow-sm focus:border-color1 outline-none text-gray-900 font-medium rounded-md w-full text-xs" />
+                </span>
+                <Button label="New Product" icon="pi pi-plus" className="bg-color1 border-none py-2 px-6 rounded-md shadow-sm font-bold text-white flex items-center justify-center gap-2 text-xs" onClick={() => navigate('/admin/products/add')} />
+            </div>
+        </div>
+    );
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[600px] flex flex-col relative animate-in fade-in duration-500">
-            {/* Table Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-6 border-b border-gray-200 bg-gray-50/30 gap-4">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800">Product Management</h2>
-                    <p className="text-sm text-gray-500">Manage your product catalog, visibility and inventory.</p>
-                </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
-                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search products..."
-                            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <button
-                        onClick={() => navigate('/admin/products/add')}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-                    >
-                        <FiPlus /> New Product
-                    </button>
-                </div>
-            </div>
-
-            <div className="flex-1 p-0 overflow-x-auto">
-                {loading ? (
-                    <div className="flex flex-col justify-center items-center h-64 gap-4">
-                        <div className="w-8 h-8 border-4 border-green-100 border-t-green-600 rounded-full animate-spin"></div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Loading Inventory...</p>
-                    </div>
-                ) : products.length === 0 ? (
-                    <div className="flex-1 flex flex-col justify-center items-center py-32 px-6 text-center animate-in fade-in zoom-in duration-700">
-                        <div className="w-24 h-24 bg-gray-50 rounded-3xl flex items-center justify-center mb-8 border border-gray-100 shadow-sm">
-                            <FiImage className="w-10 h-10 text-gray-200" />
+        <div className="animate-in fade-in duration-500">
+            <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+                <DataTable
+                    value={products}
+                    paginator
+                    rows={15}
+                    loading={loading}
+                    globalFilter={globalFilter}
+                    header={header}
+                    showGridlines
+                    responsiveLayout="stack"
+                    breakpoint="960px"
+                    className="products-table"
+                    emptyMessage={
+                        <div className="py-20 text-center">
+                            <i className="pi pi-box text-6xl text-gray-200 mb-4" />
+                            <p className="text-gray-500 font-bold text-sm mt-3">No Products Found. Build your catalog!</p>
                         </div>
-                        <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-3">Inventory is Empty</h3>
-                        <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed mb-10">
-                            You haven't registered any products yet. Start building your digital catalog by adding your first item record.
-                        </p>
-                        <button
-                            onClick={() => navigate('/admin/products/add')}
-                            className="bg-green-600 hover:bg-green-700 text-white px-10 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-green-600/20 active:scale-95 flex items-center gap-3"
-                        >
-                            <FiPlus className="w-4 h-4" /> Initialize Catalog
-                        </button>
-                    </div>
-                ) : filteredProducts.length === 0 ? (
-                    <div className="flex-1 flex flex-col justify-center items-center py-32 text-center animate-in fade-in duration-500">
-                        <div className="bg-gray-50 p-4 rounded-full mb-6">
-                            <FiSearch className="w-8 h-8 text-gray-300" />
-                        </div>
-                        <h4 className="text-lg font-bold text-gray-800 tracking-tight">Search Limit Reached</h4>
-                        <p className="text-sm text-gray-400 mt-2">No items found matching <span className="font-bold text-gray-600">"{searchTerm}"</span>. Try adjusting your filter parameters.</p>
-                        <button
-                            onClick={() => setSearchTerm('')}
-                            className="mt-6 text-xs font-black text-green-600 uppercase tracking-widest hover:underline"
-                        >
-                            Clear All Filters
-                        </button>
-                    </div>
-                ) : (
-                    <table className="w-full text-left border-collapse min-w-[1000px]">
-                        <thead>
-                            <tr className="bg-gray-50/80 border-b border-gray-200">
-                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Product & Variations</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Category & Brand</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Variants</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredProducts.map((product) => (
-                                <tr key={product._id} className="hover:bg-gray-50/50 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
-                                                {product.thumbnail?.path?.thumbnail ? (
-                                                    <img src={`${import.meta.env.VITE_SERVER_URL}${product.thumbnail.path.thumbnail}`} className="w-full h-full object-cover" />
-                                                ) : <FiImage className="w-full h-full p-3 text-gray-300" />}
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-gray-800">{product.name}</span>
-                                                <span className="text-xs text-gray-400 truncate max-w-[250px]">{product.description || 'No description'}</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-semibold text-gray-700">{product.brandId?.name || 'No Brand'}</span>
-                                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit mt-1 uppercase">{product.categoryTypeId?.name || 'Uncategorized'}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100">
-                                            {product.types?.length || 0} ITEMS
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${product.active === 1
-                                            ? 'bg-green-50 text-green-700 border-green-200'
-                                            : 'bg-gray-100 text-gray-500 border-gray-200'
-                                            }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${product.active === 1 ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                                            {product.active === 1 ? 'Active' : 'Draft'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => openDetailsModal(product)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Info"><FiEye /></button>
-                                            <button onClick={() => openEditModal(product)} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Quick Edit"><FiEdit2 /></button>
-                                            <button onClick={() => { setDeletingProduct(product); setIsDeleteModalOpen(true); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Remove"><FiTrash2 /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
+                    }
+                    rowsPerPageOptions={[10, 15, 25, 50]}
+                    paginatorClassName="border-t border-gray-50 py-4"
+                    paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} results"
+                >
+                    <Column header="Sl" body={slTemplate} className="w-16 text-center" />
+                    <Column header="Product & Variations" body={productTemplate} sortable field="name" />
+                    <Column header="Category & Brand" body={categoryTemplate} sortable field="brandId.name" />
+                    <Column header="Variants" body={variantsTemplate} headerClassName="justify-center" className="text-center" />
+                    <Column header="Status" body={statusTemplate} headerClassName="justify-center" className="text-center" sortable field="active" />
+                    <Column header="Actions" body={actionTemplate} headerClassName="justify-center" className="text-center w-36" />
+                </DataTable>
             </div>
 
             {/* Edit Modal (Aligned with AddProduct Clean Style) */}
@@ -425,6 +474,17 @@ const Products = () => {
                                     <select value={formData.active} onChange={(e) => setFormData({ ...formData, active: Number(e.target.value) })} className={inputStyle}>
                                         <option value={1}>Active</option>
                                         <option value={0}>Inactive</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={labelStyle}>Image Strategy</label>
+                                    <select
+                                        value={formData.setImg}
+                                        onChange={(e) => setFormData({ ...formData, setImg: e.target.value })}
+                                        className={inputStyle}
+                                    >
+                                        <option value="combine">Combine (Global Gallery)</option>
+                                        <option value="split">Split (Variant-wise Images)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -455,7 +515,7 @@ const Products = () => {
                                 <div className="lg:col-span-3">
                                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
                                         Dynamic Charges List
-                                        <button type="button" onClick={addChargeRow} className="ml-auto text-green-600 hover:text-green-700 text-[10px] font-black underline decoration-2 underline-offset-4">+ Add Charge</button>
+                                        <button type="button" onClick={addChargeRow} className="ml-auto text-color1 hover:text-color2 text-[10px] font-black underline decoration-2 underline-offset-4">+ Add Charge</button>
                                     </h3>
                                     <div className="space-y-4">
                                         {formData.charges.map((charge, idx) => (
@@ -465,7 +525,7 @@ const Products = () => {
                                                     <select
                                                         value={charge.name}
                                                         onChange={(e) => handleChargeChange(idx, 'name', e.target.value)}
-                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:border-green-500 outline-none shadow-sm cursor-pointer"
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:border-color1 outline-none shadow-sm cursor-pointer"
                                                     >
                                                         <option value="">Select Charge...</option>
                                                         {chargeOptions
@@ -479,7 +539,7 @@ const Products = () => {
                                                         type="number"
                                                         value={charge.amount}
                                                         onChange={(e) => handleChargeChange(idx, 'amount', e.target.value)}
-                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 focus:border-green-500 outline-none shadow-sm text-center"
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 focus:border-color1 outline-none shadow-sm text-center"
                                                         placeholder="0"
                                                     />
                                                 </div>
@@ -488,7 +548,7 @@ const Products = () => {
                                                     <select
                                                         value={charge.type}
                                                         onChange={(e) => handleChargeChange(idx, 'type', e.target.value)}
-                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest focus:border-green-500 outline-none cursor-pointer shadow-sm"
+                                                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest focus:border-color1 outline-none cursor-pointer shadow-sm"
                                                     >
                                                         <option value="fixed">Fixed (₹)</option>
                                                         <option value="percentage">Percent (%)</option>
@@ -522,7 +582,7 @@ const Products = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                                     <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Variations</h4>
-                                    <button type="button" onClick={addTypeRow} className="text-green-600 text-[10px] font-black uppercase hover:underline">+ New Variant</button>
+                                    <button type="button" onClick={addTypeRow} className="text-color1 text-[10px] font-black uppercase hover:underline">+ New Variant</button>
                                 </div>
                                 <div className="space-y-8 mt-4">
                                     {formData.types.map((type, index) => (
@@ -530,7 +590,7 @@ const Products = () => {
                                             {/* Variant Header */}
                                             <div className="flex items-center justify-between pb-4 border-b border-gray-200/50">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-[10px] font-black underline decoration-2 underline-offset-2">#{index + 1}</span>
+                                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-color8 text-color3 text-[10px] font-black underline decoration-2 underline-offset-2">#{index + 1}</span>
                                                     <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Variation Instance</h4>
                                                 </div>
                                                 <button
@@ -566,21 +626,45 @@ const Products = () => {
                                             </div>
 
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                                <div>
+                                                <div className="flex flex-col gap-4">
                                                     <label className={labelStyle}>Short Description</label>
                                                     <input type="text" value={type.description} onChange={(e) => handleTypeChange(index, 'description', e.target.value)} className={inputStyle} placeholder="One line description..." />
+
+                                                    {formData.setImg === 'split' && (
+                                                        <div className="mt-2">
+                                                            <label className={labelStyle}>Variant Images</label>
+                                                            <div className="flex flex-wrap gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-xl min-h-[60px]">
+                                                                {variantImagePreviews[index]?.map((preview, i) => (
+                                                                    <div key={i} className="relative w-12 h-12 rounded-lg border border-gray-200 overflow-hidden group">
+                                                                        <img src={preview} className="w-full h-full object-cover" alt="" />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeVariantImage(index, i)}
+                                                                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        >
+                                                                            <FiX className="text-white w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                                <label className="w-12 h-12 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-color1 hover:bg-emerald-50 transition-all text-gray-400 hover:text-color1">
+                                                                    <FiPlus />
+                                                                    <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleVariantImagesChange(index, e)} />
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="flex items-end gap-3">
+                                                <div className="flex items-end gap-3 pb-1">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleTypeChange(index, 'veg', !type.veg)}
-                                                        className={`flex-1 h-10 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all ${type.veg ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'}`}
+                                                        className={`flex-1 h-10 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all ${type.veg ? 'bg-color7 text-color1 border-color1/20' : 'bg-red-50 text-red-500 border-red-200'}`}
                                                     >
                                                         {type.veg ? 'Veg' : 'Non-Veg'}
                                                     </button>
                                                     <div className="w-24">
                                                         <label className="block text-[8px] font-black text-gray-400 uppercase mb-1 tracking-widest text-center">Max Lmt</label>
-                                                        <input type="number" value={type.maxOrder} onChange={(e) => handleTypeChange(index, 'maxOrder', e.target.value)} className="w-full h-10 px-2 bg-white border border-gray-200 rounded-lg text-center text-xs font-bold focus:border-green-400 outline-none" />
+                                                        <input type="number" value={type.maxOrder} onChange={(e) => handleTypeChange(index, 'maxOrder', e.target.value)} className="w-full h-10 px-2 bg-white border border-gray-200 rounded-lg text-center text-xs font-bold focus:border-color1 outline-none" />
                                                     </div>
                                                 </div>
                                             </div>
@@ -612,20 +696,43 @@ const Products = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className={labelStyle}>Append Assets</label>
-                                    <div className="relative aspect-video rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-4 hover:bg-gray-50 transition-colors cursor-pointer group">
-                                        <FiPlus className="text-gray-300 w-8 h-8 mb-2 group-hover:text-green-500 transition-colors" />
-                                        <span className="text-[10px] font-black uppercase text-gray-400">Add Gallery Images</span>
-                                        <input type="file" multiple onChange={handleImagesChange} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                        {imageFiles.length > 0 && <span className="mt-2 text-green-600 font-bold text-[10px]">{imageFiles.length} new selected</span>}
+                                {formData.setImg === 'combine' && (
+                                    <div>
+                                        <label className={labelStyle}>Gallery Assets</label>
+                                        <div className="flex flex-wrap gap-3 mb-4">
+                                            {imagePreviews.map((preview, i) => (
+                                                <div key={i} className="relative w-20 h-20 rounded-lg border border-gray-200 overflow-hidden group">
+                                                    <img src={preview} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newFormData = { ...formData };
+                                                            newFormData.images.splice(i, 1);
+                                                            setFormData(newFormData);
+                                                            const newPreviews = [...imagePreviews];
+                                                            newPreviews.splice(i, 1);
+                                                            setImagePreviews(newPreviews);
+                                                        }}
+                                                        className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <FiX className="text-white w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="relative aspect-video rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-4 hover:bg-gray-50 transition-colors cursor-pointer group">
+                                            <FiPlus className="text-gray-300 w-8 h-8 mb-2 group-hover:text-green-500 transition-colors" />
+                                            <span className="text-[10px] font-black uppercase text-gray-400">Add Gallery Images</span>
+                                            <input type="file" multiple onChange={handleImagesChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                            {imageFiles.length > 0 && <span className="mt-2 text-green-600 font-bold text-[10px]">{imageFiles.length} new selected</span>}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 pt-6 border-t font-semibold">
                                 <button type="button" onClick={closeEditModal} className="px-5 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">Cancel</button>
-                                <button type="submit" disabled={isSubmitting} className="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm shadow-md transition-all flex items-center gap-2">
+                                <button type="submit" disabled={isSubmitting} className="px-8 py-2 bg-color1 hover:bg-color2 text-white rounded-lg text-sm shadow-md transition-all flex items-center gap-2">
                                     {isSubmitting && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                                     Save Changes
                                 </button>

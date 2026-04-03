@@ -14,14 +14,12 @@ const Sidebar = () => {
     const [openMenus, setOpenMenus] = useState({});
     const location = useLocation();
 
-    // Toggle specific dropdown menu
     const toggleMenu = (menuName) => {
         setOpenMenus(prev => ({
             ...prev,
             [menuName]: !prev[menuName]
         }));
 
-        // If sidebar is collapsed and we click a dropdown, expand the sidebar
         if (isCollapsed) {
             setIsCollapsed(false);
         }
@@ -62,7 +60,6 @@ const Sidebar = () => {
         { name: 'Profile', path: '/admin/profile', icon: <FaUserCircle className="w-5 h-5 shrink-0" /> },
     ];
 
-    // Determine sidebar width based on collapsed state on desktop
     const sidebarWidth = isCollapsed ? 'lg:w-20' : 'lg:w-64';
 
     return (
@@ -77,33 +74,33 @@ const Sidebar = () => {
 
             {/* Sidebar */}
             <aside
-                className={`fixed top-0 left-0 z-50 h-screen transition-all duration-300 ease-in-out bg-green-900 text-white shadow-xl flex flex-col shrink-0
+                className={`fixed top-0 left-0 z-50 h-screen transition-all duration-300 ease-in-out bg-white text-gray-700 shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100 flex flex-col shrink-0
                 ${sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64 lg:translate-x-0'} 
                 ${sidebarWidth} lg:relative`}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between h-16 px-4 bg-green-950 shrink-0">
+                <div className="flex items-center justify-between h-16 px-4 bg-white border-b border-gray-100 shrink-0">
                     <div className="flex items-center gap-3 overflow-hidden">
                         {/* Always show small logo or icon in collapsed mode */}
-                        <div className="w-8 h-8 bg-green-800 rounded flex items-center justify-center shrink-0">
-                            <MdStorefront className="text-xl" />
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: 'var(--color-color1)' }}>
+                            <MdStorefront className="text-xl text-white" />
                         </div>
 
-                        {/* Only show title if not collapsed (or on mobile where it's always full width) */}
-                        <span className={`text-lg font-bold tracking-wider text-green-50 whitespace-nowrap transition-opacity duration-300 ${isCollapsed ? 'lg:opacity-0 lg:w-0' : 'opacity-100'} lg:block`}>
+                        {/* Only show title if not collapsed */}
+                        <span className={`text-lg font-black tracking-tight text-gray-900 whitespace-nowrap transition-opacity duration-300 ${isCollapsed ? 'lg:opacity-0 lg:w-0' : 'opacity-100'} lg:block`}>
                             Admin Panel
                         </span>
                     </div>
 
                     {/* Mobile Close Button */}
-                    <button onClick={toggleSidebar} className="lg:hidden text-green-200 hover:text-white transition-colors p-1">
+                    <button onClick={toggleSidebar} className="lg:hidden text-gray-400 hover:text-gray-900 transition-colors p-1">
                         <FiX className="w-6 h-6" />
                     </button>
 
                     {/* Desktop Collapse Toggle */}
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full bg-green-800 text-green-200 hover:bg-green-700 hover:text-white transition-colors absolute -right-4 top-4 border-2 border-gray-50 z-50 shadow-md"
+                        className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full bg-white text-gray-400 hover:bg-gray-50 hover:text-gray-900 transition-colors absolute -right-4 top-4 border border-gray-200 z-50 shadow-sm"
                     >
                         {isCollapsed ? <FiChevronRight className="w-4 h-4" /> : <FiChevronLeft className="w-4 h-4" />}
                     </button>
@@ -115,7 +112,6 @@ const Sidebar = () => {
                         const hasChildren = item.children && item.children.length > 0;
                         const isOpen = openMenus[item.name];
 
-                        // Check if an item or its children is active based on path
                         const isChildActive = hasChildren && item.children.some(child => location.pathname === child.path);
                         const isMainActive = !hasChildren && location.pathname === item.path;
                         const isActive = isMainActive || isChildActive;
@@ -126,12 +122,12 @@ const Sidebar = () => {
                                     <button
                                         onClick={() => toggleMenu(item.name)}
                                         className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 font-medium ${isActive
-                                            ? 'bg-green-800/50 text-white'
-                                            : 'text-green-100 hover:bg-green-800 hover:text-white'
+                                            ? 'bg-emerald-50/50 text-gray-900 font-bold'
+                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                             } ${isCollapsed ? 'lg:justify-center' : ''}`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            {item.icon}
+                                            <div className={`${isActive ? 'text-[var(--color-color1)]' : 'text-gray-400'}`}>{item.icon}</div>
                                             <span className={`whitespace-nowrap transition-opacity duration-200 ${isCollapsed ? 'lg:hidden' : 'block'}`}>
                                                 {item.name}
                                             </span>
@@ -144,11 +140,12 @@ const Sidebar = () => {
                                     <NavLink
                                         to={item.path}
                                         className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 font-medium ${isActive
-                                            ? 'bg-green-700 text-white shadow-md border-l-4 border-green-400'
-                                            : 'text-green-100 hover:bg-green-800 hover:text-white border-l-4 border-transparent'
+                                            ? 'bg-emerald-50 text-gray-900 shadow-sm border-l-4'
+                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent'
                                             } ${isCollapsed ? 'lg:justify-center lg:px-0 lg:border-l-0 lg:border-r-4' : ''}`}
+                                        style={isActive ? { borderColor: 'var(--color-color1)' } : {}}
                                     >
-                                        {item.icon}
+                                        <div className={`${isActive ? 'text-[var(--color-color1)]' : 'text-gray-400'}`}>{item.icon}</div>
                                         <span className={`whitespace-nowrap transition-opacity duration-200 ${isCollapsed ? 'lg:hidden' : 'block'}`}>
                                             {item.name}
                                         </span>
@@ -158,9 +155,9 @@ const Sidebar = () => {
                                 {/* Collapsed state Custom Tooltip */}
                                 {isCollapsed && (
                                     <div className="absolute left-full top-0 h-full ml-3 hidden lg:group-hover/navitem:flex items-center z-[100] pointer-events-none">
-                                        <div className="bg-green-700 text-white text-sm px-3 py-1.5 rounded-lg shadow-2xl whitespace-nowrap flex items-center relative border border-green-600">
+                                        <div className="bg-gray-900 text-white text-sm px-3 py-1.5 rounded-lg shadow-2xl whitespace-nowrap flex items-center relative border border-gray-800">
                                             {/* Tooltip pointer arrow */}
-                                            <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-green-700 border-l border-b border-green-600 rotate-45"></div>
+                                            <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-gray-900 border-l border-b border-gray-800 rotate-45"></div>
                                             <span className="relative z-10 font-bold tracking-wide drop-shadow-sm">{item.name}</span>
                                         </div>
                                     </div>
@@ -169,17 +166,18 @@ const Sidebar = () => {
                                 {/* Dropdown Menu Render */}
                                 {hasChildren && (
                                     <div
-                                        className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && !isCollapsed ? 'max-h-48 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}
+                                        className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && !isCollapsed ? 'max-h-56 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}
                                     >
-                                        <div className="pl-11 pr-3 py-1 space-y-1 border-l-2 border-green-800 ml-5 relative before:content-[''] before:absolute before:left-[-2px] before:top-0 before:h-full before:bg-green-800/20 text-sm">
+                                        <div className="pl-11 pr-3 py-1 space-y-1 border-l-2 border-gray-100 ml-5 relative before:content-[''] before:absolute before:left-[-2px] before:top-0 before:h-full before:bg-gray-100 text-sm">
                                             {item.children.map((child) => (
                                                 <NavLink
                                                     key={child.name}
                                                     to={child.path}
+                                                    end={child.path === '/admin/products' || child.path === '/admin/categories'}
                                                     className={({ isActive }) =>
                                                         `block py-1.5 px-3 rounded-md transition-colors whitespace-nowrap ${isActive
-                                                            ? 'text-green-300 bg-green-800/30 font-medium'
-                                                            : 'text-green-200 hover:text-white hover:bg-green-800/50'
+                                                            ? 'text-[var(--color-color1)] font-bold bg-emerald-50/50'
+                                                            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                                                         }`
                                                     }
                                                 >
@@ -195,16 +193,16 @@ const Sidebar = () => {
                 </nav>
 
                 {/* Footer / Session */}
-                <div className="p-3 bg-green-950 shrink-0 border-t border-green-900">
+                <div className="p-3 bg-white shrink-0 border-t border-gray-100">
                     <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-8 h-8 rounded-full bg-green-700 shrink-0 flex items-center justify-center text-sm font-bold shadow-inner">
+                        <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-sm font-bold text-white shadow-inner" style={{ backgroundColor: 'var(--color-color1)' }}>
                             AD
                         </div>
                         <div className={`transition-opacity duration-300 ${isCollapsed ? 'lg:opacity-0 lg:w-0' : 'opacity-100'}`}>
-                            <p className="text-xs text-green-400 font-semibold mb-0.5">Administrator</p>
+                            <p className="text-xs font-bold text-gray-900 mb-0.5">Administrator</p>
                             <div className="flex items-center gap-1.5 opacity-80">
-                                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                                <p className="text-[10px] uppercase tracking-wider">Online</p>
+                                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-color1)' }}></div>
+                                <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Online</p>
                             </div>
                         </div>
                     </div>

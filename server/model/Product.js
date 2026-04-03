@@ -21,7 +21,11 @@ const productTypeSchema = new mongoose.Schema({
     maxOrder: { type: Number, default: 1 },
     info: { type: mongoose.Schema.Types.Mixed }, // Mixed type allows any object structure
     verified: { type: Boolean, default: false }, // Boolean default is false (0)
-    veg: { type: Boolean, default: false } // Boolean default is false (0)
+    veg: { type: Boolean, default: false }, // Boolean default is false (0)
+    images: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ImagePath'
+    }]
 });
 
 // Main Product schema
@@ -77,6 +81,11 @@ const productSchema = new mongoose.Schema({
         type: Number,
         enum: [0, 1],
         default: 1
+    },
+    setImg: {
+        type: String,
+        enum: ['combine', 'split'],
+        default: 'combine'
     }
 }, {
     timestamps: true,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
-import { FiX, FiPlus, FiTrash2, FiImage, FiArrowLeft, FiSave, FiAlertCircle } from 'react-icons/fi';
+import { FiX, FiPlus, FiTrash2, FiImage, FiArrowLeft, FiSave } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
 import ReactQuill from 'react-quill-new';
@@ -23,13 +23,6 @@ const AddProduct = () => {
         "GST",
     ];
 
-    // Default Dynamic Charges template
-    const defaultCharges = [
-        { name: 'Delivery Charge', amount: '', type: 'fixed' },
-        { name: 'Packing Charge', amount: '', type: 'fixed' },
-        { name: 'GST', amount: '', type: 'percentage' }
-    ];
-
     // Initial Form State
     const initialFormState = {
         name: '',
@@ -40,7 +33,8 @@ const AddProduct = () => {
         expectedTime: '',
         returnPolicy: 'no return',
         active: 1,
-        types: [{ qty: '', unitId: '', price: '', mrp: '', description: '', maxOrder: 1, verified: false, veg: false, info: '' }],
+        setImg: 'combine',
+        types: [{ qty: '', unitId: '', price: '', mrp: '', description: '', maxOrder: 1, verified: false, veg: false, info: '', images: [] }],
         charges: []
     };
 
@@ -49,6 +43,10 @@ const AddProduct = () => {
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
     const [imageFiles, setImageFiles] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
+
+    // Variant-specific images (for 'split' mode)
+    const [variantImageFiles, setVariantImageFiles] = useState([[]]);
+    const [variantImagePreviews, setVariantImagePreviews] = useState([[]]);
 
     const fetchData = async () => {
         try {
@@ -85,14 +83,18 @@ const AddProduct = () => {
     const addTypeRow = () => {
         setFormData({
             ...formData,
-            types: [...formData.types, { qty: '', unitId: '', price: '', mrp: '', description: '', maxOrder: 1, verified: false, veg: false, info: '' }]
+            types: [...formData.types, { qty: '', unitId: '', price: '', mrp: '', description: '', maxOrder: 1, verified: false, veg: false, info: '', images: [] }]
         });
+        setVariantImageFiles([...variantImageFiles, []]);
+        setVariantImagePreviews([...variantImagePreviews, []]);
     };
 
     const removeTypeRow = (index) => {
         if (formData.types.length <= 1) return;
         const newTypes = formData.types.filter((_, i) => i !== index);
         setFormData({ ...formData, types: newTypes });
+        setVariantImageFiles(variantImageFiles.filter((_, i) => i !== index));
+        setVariantImagePreviews(variantImagePreviews.filter((_, i) => i !== index));
     };
 
     const handleThumbnailChange = (e) => {
@@ -116,6 +118,28 @@ const AddProduct = () => {
         const newPreviews = imagePreviews.filter((_, i) => i !== index);
         setImageFiles(newFiles);
         setImagePreviews(newPreviews);
+    };
+
+    const handleVariantImagesChange = (index, e) => {
+        const files = Array.from(e.target.files);
+        const newFiles = [...variantImageFiles];
+        newFiles[index] = [...newFiles[index], ...files];
+        setVariantImageFiles(newFiles);
+
+        const previews = files.map(file => URL.createObjectURL(file));
+        const newPreviews = [...variantImagePreviews];
+        newPreviews[index] = [...newPreviews[index], ...previews];
+        setVariantImagePreviews(newPreviews);
+    };
+
+    const removeVariantImage = (variantIndex, imageIndex) => {
+        const newFiles = [...variantImageFiles];
+        newFiles[variantIndex] = newFiles[variantIndex].filter((_, i) => i !== imageIndex);
+        setVariantImageFiles(newFiles);
+
+        const newPreviews = [...variantImagePreviews];
+        newPreviews[variantIndex] = newPreviews[variantIndex].filter((_, i) => i !== imageIndex);
+        setVariantImagePreviews(newPreviews);
     };
 
     const handleChargeChange = (index, field, value) => {
@@ -172,10 +196,18 @@ const AddProduct = () => {
                 payloadData.append('thumbnail', thumbnailFile);
             }
 
-            if (imageFiles && imageFiles.length > 0) {
-                imageFiles.forEach(file => {
-                    payloadData.append('images', file);
+            if (formData.setImg === 'split') {
+                variantImageFiles.forEach((files, index) => {
+                    files.forEach(file => {
+                        payloadData.append(`images_${index}`, file);
+                    });
                 });
+            } else {
+                if (imageFiles && imageFiles.length > 0) {
+                    imageFiles.forEach(file => {
+                        payloadData.append('images', file);
+                    });
+                }
             }
 
             await api.post('/product', payloadData, {
@@ -184,12 +216,13 @@ const AddProduct = () => {
 
             toast.success('Product created successfully!');
 
-            // Reset Form instead of navigating
             setFormData(JSON.parse(JSON.stringify(initialFormState)));
             setThumbnailFile(null);
             setThumbnailPreview(null);
             setImageFiles([]);
             setImagePreviews([]);
+            setVariantImageFiles([[]]);
+            setVariantImagePreviews([[]]);
 
         } catch (error) {
             toast.error(error.response?.data?.message || 'Creation failed!');
@@ -199,7 +232,7 @@ const AddProduct = () => {
     };
 
     const labelStyle = "block text-xs font-bold text-black uppercase tracking-wider mb-2";
-    const inputStyle = "w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all text-sm text-gray-800 placeholder:text-gray-400";
+    const inputStyle = "w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all text-sm text-black placeholder:text-black";
 
     return (
         <div className="max-w-6xl mx-auto py-8 px-4 animate-in fade-in duration-500">
@@ -208,13 +241,13 @@ const AddProduct = () => {
                 <div className="flex items-center gap-5">
                     <button
                         onClick={() => navigate('/admin/products')}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                        className="p-2 text-black hover:text-black hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
                     >
                         <FiArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Product Register</h1>
-                        <p className="text-sm text-gray-500">Add detailed information and variants to your inventory.</p>
+                        <h1 className="text-2xl font-bold text-black tracking-tight">Product Register</h1>
+                        <p className="text-sm text-black opacity-80">Add detailed information and variants to your inventory.</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -234,9 +267,9 @@ const AddProduct = () => {
 
             <form id="product-form" onSubmit={handleSubmit} className="space-y-8">
                 {/* Information Card */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden font-sans">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden">
                     <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200">
-                        <h2 className="text-xs font-black text-gray-600 uppercase tracking-widest flex items-center gap-2">
+                        <h2 className="text-xs font-black text-black uppercase tracking-widest flex items-center gap-2">
                             General Attributes
                         </h2>
                     </div>
@@ -261,6 +294,18 @@ const AddProduct = () => {
                             >
                                 <option value={1}>Active</option>
                                 <option value={0}>Inactive</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className={labelStyle}>Image Strategy</label>
+                            <select
+                                value={formData.setImg}
+                                onChange={(e) => setFormData({ ...formData, setImg: e.target.value })}
+                                className={inputStyle}
+                            >
+                                <option value="combine">Combine (Global Gallery)</option>
+                                <option value="split">Split (Variant-wise Images)</option>
                             </select>
                         </div>
 
@@ -322,15 +367,23 @@ const AddProduct = () => {
                         </div>
 
                         <div className="lg:col-span-3">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                                Dynamic Charges Interface
-                                <button type="button" onClick={addChargeRow} className="ml-auto text-green-600 hover:text-green-700 text-[10px] font-black underline decoration-2 underline-offset-4">+ New Charge Entry</button>
-                            </h3>
+                            <div className="mb-6 flex items-center justify-between">
+                                <h3 className="text-xs font-black text-black uppercase tracking-[0.2em]">
+                                    Dynamic Charges Interface
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={addChargeRow}
+                                    className="px-4 py-2 bg-color1 hover:bg-color2 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
+                                >
+                                    <FiPlus className="w-3 h-3" /> New Charge Entry
+                                </button>
+                            </div>
                             <div className="space-y-4">
                                 {formData.charges.map((charge, idx) => (
                                     <div key={idx} className="flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-gray-50/50 border border-gray-100 rounded-xl transition-all hover:bg-gray-100/80 group">
                                         <div className="flex-1 min-w-[150px]">
-                                            <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 ml-1">Charge Name</label>
+                                            <label className="block text-[8px] font-black text-black uppercase mb-1.5 ml-1">Charge Name</label>
                                             <select
                                                 value={charge.name}
                                                 onChange={(e) => handleChargeChange(idx, 'name', e.target.value)}
@@ -343,17 +396,17 @@ const AddProduct = () => {
                                             </select>
                                         </div>
                                         <div className="w-24">
-                                            <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 text-center">Amount</label>
+                                            <label className="block text-[8px] font-black text-black uppercase mb-1.5 text-center">Amount</label>
                                             <input
                                                 type="number"
                                                 value={charge.amount}
                                                 onChange={(e) => handleChargeChange(idx, 'amount', e.target.value)}
-                                                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 focus:border-green-500 outline-none shadow-sm text-center"
+                                                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-black focus:border-green-500 outline-none shadow-sm text-center"
                                                 placeholder="0"
                                             />
                                         </div>
                                         <div className="w-32">
-                                            <label className="block text-[8px] font-black text-gray-400 uppercase mb-1.5 text-center">Type</label>
+                                            <label className="block text-[8px] font-black text-black uppercase mb-1.5 text-center">Type</label>
                                             <select
                                                 value={charge.type}
                                                 onChange={(e) => handleChargeChange(idx, 'type', e.target.value)}
@@ -399,7 +452,7 @@ const AddProduct = () => {
                 {/* Variations Card */}
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden">
                     <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200 flex justify-between items-center">
-                        <h2 className="text-xs font-black text-gray-600 uppercase tracking-widest">Inventory Matrix</h2>
+                        <h2 className="text-xs font-black text-black uppercase tracking-widest">Inventory Matrix</h2>
                         <button
                             type="button"
                             onClick={addTypeRow}
@@ -414,7 +467,7 @@ const AddProduct = () => {
                                 <div className="flex items-center justify-between pb-4 border-b border-gray-200/50">
                                     <div className="flex items-center gap-3">
                                         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-[10px] font-black underline decoration-2 underline-offset-2">#{index + 1}</span>
-                                        <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Product Variation Instance</h4>
+                                        <h4 className="text-[10px] font-black uppercase text-black tracking-[0.2em]">Product Variation Instance</h4>
                                     </div>
                                     {formData.types.length > 1 && (
                                         <button
@@ -485,7 +538,7 @@ const AddProduct = () => {
                                             {type.veg ? 'Veg' : 'Non-Veg'}
                                         </button>
                                         <div className="w-24">
-                                            <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Max Lmt</label>
+                                            <label className="block text-[8px] font-black text-black uppercase tracking-widest mb-1">Max Lmt</label>
                                             <input
                                                 type="number"
                                                 value={type.maxOrder}
@@ -497,7 +550,7 @@ const AddProduct = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div>
+                                    <div className="flex flex-col gap-4">
                                         <label className={labelStyle}>Variant Short Description</label>
                                         <input
                                             type="text"
@@ -506,6 +559,30 @@ const AddProduct = () => {
                                             className={inputStyle}
                                             placeholder="Briefly describe this specific size/variant..."
                                         />
+
+                                        {formData.setImg === 'split' && (
+                                            <div className="mt-2">
+                                                <label className={labelStyle}>Variant Gallery</label>
+                                                <div className="flex flex-wrap gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-xl min-h-[60px]">
+                                                    {variantImagePreviews[index]?.map((preview, i) => (
+                                                        <div key={i} className="relative w-12 h-12 rounded-lg border border-gray-200 overflow-hidden group">
+                                                            <img src={preview} className="w-full h-full object-cover" alt="" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeVariantImage(index, i)}
+                                                                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <FiX className="text-white w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <label className="w-12 h-12 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-color1 hover:bg-emerald-50 transition-all text-gray-400 hover:text-color1">
+                                                        <FiPlus />
+                                                        <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleVariantImagesChange(index, e)} />
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="variation-rich-editor">
                                         <label className={labelStyle}>Detailed Information (Rich Text)</label>
@@ -528,7 +605,7 @@ const AddProduct = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden flex flex-col">
                         <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200">
-                            <h2 className="text-xs font-black text-gray-600 uppercase tracking-widest">Master Thumbnail</h2>
+                            <h2 className="text-xs font-black text-black uppercase tracking-widest">Master Thumbnail</h2>
                         </div>
                         <div className="p-8 flex-1 flex flex-col gap-6">
                             <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex items-center justify-center p-4">
@@ -564,54 +641,56 @@ const AddProduct = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden flex flex-col">
-                        <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200">
-                            <h2 className="text-xs font-black text-gray-600 uppercase tracking-widest">Asset Gallery</h2>
-                        </div>
-                        <div className="p-8 flex-1 flex flex-col gap-6">
-                            {/* Gallery Preview Grid */}
-                            <div className="flex-1 grid grid-cols-4 gap-4 max-h-[160px] overflow-y-auto p-1 custom-scrollbar">
-                                {imagePreviews.map((preview, i) => (
-                                    <div key={i} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group bg-gray-50">
-                                        <img src={preview} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeGalleryImage(i)}
-                                            className="absolute top-1 right-1 p-1 bg-white/90 rounded-md text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border border-gray-100 shadow-sm"
-                                        >
-                                            <FiX className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                                {imageFiles.length === 0 && (
-                                    <div className="col-span-4 flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-100 rounded-xl">
-                                        <FiPlus className="w-6 h-6 text-gray-200 mb-2" />
-                                        <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">No Gallery Assets</p>
-                                    </div>
-                                )}
+                    {formData.setImg === 'combine' && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden flex flex-col">
+                            <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200">
+                                <h2 className="text-xs font-black text-black uppercase tracking-widest">Asset Gallery</h2>
                             </div>
+                            <div className="p-8 flex-1 flex flex-col gap-6">
+                                {/* Gallery Preview Grid */}
+                                <div className="flex-1 grid grid-cols-4 gap-4 max-h-[160px] overflow-y-auto p-1 custom-scrollbar">
+                                    {imagePreviews.map((preview, i) => (
+                                        <div key={i} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group bg-gray-50">
+                                            <img src={preview} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeGalleryImage(i)}
+                                                className="absolute top-1 right-1 p-1 bg-white/90 rounded-md text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border border-gray-100 shadow-sm"
+                                            >
+                                                <FiX className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {imageFiles.length === 0 && (
+                                        <div className="col-span-4 flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-100 rounded-xl">
+                                            <FiPlus className="w-6 h-6 text-gray-200 mb-2" />
+                                            <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">No Gallery Assets</p>
+                                        </div>
+                                    )}
+                                </div>
 
-                            <label className="cursor-pointer group">
-                                <span className="block w-full text-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 group-hover:border-green-500 group-hover:text-green-600 text-gray-400 font-bold rounded-lg transition-all text-[10px] uppercase tracking-widest">
-                                    Append Supplementary Images
-                                </span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    className="hidden"
-                                    onChange={handleImagesChange}
-                                />
-                            </label>
+                                <label className="cursor-pointer group">
+                                    <span className="block w-full text-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 group-hover:border-green-500 group-hover:text-green-600 text-black font-bold rounded-lg transition-all text-[10px] uppercase tracking-widest">
+                                        Append Supplementary Images
+                                    </span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        className="hidden"
+                                        onChange={handleImagesChange}
+                                    />
+                                </label>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="pb-12 pt-4 flex gap-4 justify-end">
                     <button
                         type="button"
                         onClick={() => navigate('/admin/products')}
-                        className="px-10 py-3 text-xs font-bold text-gray-400 hover:text-gray-800 transition-colors uppercase tracking-widest"
+                        className="px-10 py-3 text-xs font-bold text-black hover:text-black transition-colors uppercase tracking-widest"
                     >
                         Return to Dashboard
                     </button>
@@ -645,4 +724,3 @@ const AddProduct = () => {
 };
 
 export default AddProduct;
-

@@ -1,17 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 @import "tailwindcss";
 
+:root {
+  --font-family: "Open Sans", sans-serif;
+}
+
+* {
+  font-family: var(--font-family) !important;
+}
+
 @theme {
-  --color-green-50: #f0fdf4;
-  --color-green-100: #dcfce7;
-  --color-green-200: #bbf7d0;
-  --color-green-300: #86efac;
-  --color-green-400: #4ade80;
-  --color-green-500: #22c55e;
-  --color-green-600: #16a34a;
-  --color-green-700: #15803d;
-  --color-green-800: #166534;
-  --color-green-900: #14532d;
-  --color-green-950: #052e16;
+  --font-sans: "Open Sans", sans-serif;
+  --color-color1: #10b981;  /* emerald-500: Primary */
+  --color-color2: #059669;  /* emerald-600: Hover */
+  --color-color3: #047857;  /* emerald-700: Active */
+  --color-color4: #065f46;  /* emerald-800: Focus */
+  --color-color5: #115e59;  /* teal-800 */
+  --color-color6: #022c22;  /* emerald-950 */
+  --color-color7: #ecfdf5;  /* emerald-50: Surfaces/Badges */
+  --color-color8: #d1fae5;  /* emerald-100: Secondary bg */
+  --color-color9: #a7f3d0;  /* emerald-200 */
+  --color-color10: #6ee7b7; /* emerald-300 */
+  --color-color11: #34d399; /* emerald-400 */
 }
 
 body {
@@ -19,6 +29,169 @@ body {
   color: #1f2937;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-size: 0.875rem; /* text-sm */
+  font-family: var(--font-family);
+  font-optical-sizing: auto;
+  font-variation-settings: "wdth" 100;
+  font-size: 0.875rem;
+  margin: 0;
   line-height: 1.25rem;
+}
+
+/* Base PrimeReact DataTable Overrides for Clean Sakai Architecture */
+.p-datatable {
+    width: 100% !important;
+}
+
+.p-datatable table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 0.8rem !important;
+    text-transform: capitalize !important;
+    letter-spacing: normal !important;
+    padding: 1rem 1rem !important;
+    font-weight: 700 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-top: none !important;
+    text-align: left !important;
+}
+
+.p-datatable .p-sortable-column .p-sortable-column-icon {
+    width: 0.75rem !important;
+    height: 0.75rem !important;
+    margin-left: 0.5rem !important;
+    color: #94a3b8 !important;
+    vertical-align: middle !important;
+}
+
+.p-datatable .p-sortable-column:hover .p-sortable-column-icon {
+    color: var(--color-color1) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr {
+    background: #ffffff !important;
+    color: #000000 !important;
+    transition: background-color 0.2s !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+    background: #f8fafc !important;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.75rem 1rem !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+/* Native Pagination Alignment */
+.p-paginator {
+    background-color: transparent !important;
+    padding: 1.5rem 0 0 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+.p-paginator .p-paginator-current {
+    font-size: 0.75rem !important;
+    color: #64748b !important;
+    font-weight: 700 !important;
+    margin-right: auto !important;
+}
+
+.p-paginator .p-dropdown {
+    height: 2.25rem !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    background-color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 1rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+}
+
+.p-paginator .p-paginator-pages .p-paginator-page,
+.p-paginator .p-paginator-first,
+.p-paginator .p-paginator-prev,
+.p-paginator .p-paginator-next,
+.p-paginator .p-paginator-last {
+    min-width: 2.25rem !important;
+    height: 2.25rem !important;
+    border-radius: 0.5rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    margin: 0 0.125rem !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s !important;
+}
+
+.p-paginator .p-paginator-pages .p-paginator-page:hover,
+.p-paginator .p-paginator-first:hover,
+.p-paginator .p-paginator-prev:hover,
+.p-paginator .p-paginator-next:hover,
+.p-paginator .p-paginator-last:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+.p-paginator .p-paginator-pages .p-paginator-page.p-highlight {
+    background-color: var(--color-color1) !important;
+    color: white !important;
+    box-shadow: 0 4px 14px -4px var(--color-color1) !important;
+}
+
+/* Fix Dropdown Menus broken by Tailwind CSS Reset */
+.p-dropdown-panel {
+    background: #ffffff !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+.p-dropdown-panel .p-dropdown-items {
+    padding: 0.25rem !important;
+    margin: 0 !important;
+    list-style-type: none !important;
+}
+
+.p-dropdown-panel .p-dropdown-item {
+    font-family: inherit !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    padding: 0.5rem 1rem !important;
+    margin: 0 !important;
+    border-radius: 0.25rem !important;
+    color: #334155 !important;
+    transition: background-color 0.2s !important;
+    cursor: pointer !important;
+}
+
+.p-dropdown-panel .p-dropdown-item:hover {
+    background-color: #f1f5f9 !important;
+}
+
+.p-dropdown-panel .p-dropdown-item.p-highlight {
+    background-color: var(--color-color1) !important;
+    color: #ffffff !important;
+}
+
+/* Global Typography for Third-Party Components */
+.ql-container, .ql-editor, .react-select-container, .select__control, .select__menu {
+    font-family: var(--font-family) !important;
+    color: #000000 !important;
 }
